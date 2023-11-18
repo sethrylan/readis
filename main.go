@@ -1,31 +1,18 @@
 package main
 
-// A simple example demonstrating the use of multiple text input components
-// from the Bubbles component library.
-
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cursorStyle         = focusedStyle.Copy()
-	noStyle             = lipgloss.NewStyle()
-	helpStyle           = blurredStyle.Copy()
-	cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-
-	// focusedButton = focusedStyle.Copy().Render("[ Submit ]")
-	// blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
 )
 
 // Focus Areas
@@ -34,43 +21,58 @@ const (
 	KeyList
 )
 
+func randtype() string {
+	types := []string{
+		"set",
+		"sorted set",
+		"hash",
+		"string",
+		"list",
+	}
+	n := rand.Int() % len(types)
+	return types[n]
+
+}
+
 var allkeys = [...]list.Item{
-	key{title: "Raspberry Pi’s", desc: "I have ’em all over my house"},
-	key{title: "Nutella", desc: "It's good on toast"},
-	key{title: "Bitter melon", desc: "It cools you down"},
-	key{title: "Nice socks", desc: "And by that I mean socks without holes"},
-	key{title: "Eight hours of sleep", desc: "I had this once"},
-	key{title: "Cats", desc: "Usually"},
-	key{title: "Plantasia, the album", desc: "My plants love it too"},
-	key{title: "Pour over coffee", desc: "It takes forever to make though"},
-	key{title: "VR", desc: "Virtual reality...what is there to say?"},
-	key{title: "Noguchi Lamps", desc: "Such pleasing organic forms"},
-	key{title: "Linux", desc: "Pretty much the best OS"},
-	key{title: "Business school", desc: "Just kidding"},
-	key{title: "Pottery", desc: "Wet clay is a great feeling"},
-	key{title: "Shampoo", desc: "Nothing like clean hair"},
-	key{title: "Table tennis", desc: "It’s surprisingly exhausting"},
-	key{title: "Milk crates", desc: "Great for packing in your extra stuff"},
-	key{title: "Afternoon tea", desc: "Especially the tea sandwich part"},
-	key{title: "Stickers", desc: "The thicker the vinyl the better"},
-	key{title: "20° Weather", desc: "Celsius, not Fahrenheit"},
-	key{title: "Warm light", desc: "Like around 2700 Kelvin"},
-	key{title: "The vernal equinox", desc: "The autumnal equinox is pretty good too"},
-	key{title: "Gaffer’s tape", desc: "Basically sticky fabric"},
-	key{title: "Terrycloth", desc: "In other words, towel fabric"},
+	rkey{key: "Raspberry Pi’s", keyType: randtype(), size: rand.Intn(100), ttl: time.Duration(rand.Intn(100000000000))},
+	rkey{key: "Nutella", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Bitter melon", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Nice socks", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Eight hours of sleep", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Cats", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Plantasia, the album", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Pour over coffee", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "VR", keyType: randtype(), size: 12, ttl: 0},
+	rkey{key: "Noguchi Lamps", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Linux", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Business school", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Pottery", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Shampoo", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Table tennis", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Milk crates", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Afternoon tea", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Stickers", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "20° Weather", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Warm light", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "The vernal equinox", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Gaffer’s tape", keyType: "hash", size: 12, ttl: 0},
+	rkey{key: "Terrycloth", keyType: "hash", size: 12, ttl: 0},
 }
 
 type model struct {
-	focus int
+	focus  int
+	keyMap *listKeyMap
 
 	patternInput textinput.Model
-	cursorMode   cursor.Mode
 
-	keyList list.Model
+	rkeyList list.Model
 }
 
 func initialModel() model {
 	m := model{}
+
+	m.keyMap = newListKeyMap()
 
 	m.patternInput = textinput.New()
 	m.patternInput.Cursor.Style = cursorStyle
@@ -80,10 +82,16 @@ func initialModel() model {
 	m.patternInput.PromptStyle = focusedStyle
 	m.patternInput.TextStyle = focusedStyle
 
-	m.keyList = list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-	m.keyList.Title = "Results"
+	m.rkeyList = list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	m.rkeyList.SetStatusBarItemName("Key", "Keys")
+	m.rkeyList.SetShowTitle(false)
+	m.rkeyList.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			m.keyMap.scanMore,
+		}
+	}
 
-	m.keyList.SetHeight(docStyle.GetHeight() - 10)
+	m.rkeyList.SetHeight(docStyle.GetHeight() - 10)
 
 	return m
 }
@@ -97,31 +105,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c", "esc", "q":
 			return m, tea.Quit
-		// Change cursor mode
-		case "ctrl+r":
-			m.cursorMode++
-			if m.cursorMode > cursor.CursorHide {
-				m.cursorMode = cursor.CursorBlink
-			}
-			patternInputCmd := m.patternInput.Cursor.SetMode(m.cursorMode)
-			return m, tea.Batch(patternInputCmd)
-
-		case "enter", "up", "down":
-			s := msg.String()
-
+		case "enter":
 			// Did the user press enter while pattern input was focused?
 			// TODO: run search
-			if s == "enter" && m.patternInput.Focused() {
+			if m.patternInput.Focused() {
 				i, err := strconv.Atoi(m.patternInput.Value())
 				i = min(i, len(allkeys))
 				if err == nil {
-					m.keyList.SetItems(allkeys[:i])
+					m.rkeyList.SetItems(allkeys[:i])
 				}
 			}
 			var cmd tea.Cmd
-			m.keyList, cmd = m.keyList.Update(msg)
+			m.rkeyList, cmd = m.rkeyList.Update(msg)
+			return m, tea.Batch(cmd)
+
+		case "up", "down":
+			var cmd tea.Cmd
+			m.rkeyList, cmd = m.rkeyList.Update(msg)
 			return m, tea.Batch(cmd)
 
 		// Set focus to next input
@@ -159,13 +161,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		patternInputHeight := 4 // TODO: calculate this value
-		m.keyList.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
+		patternInputHeight := 3 // TODO: calculate this value
+		m.rkeyList.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
 	}
 
 	// Handle character input and blinking
 	cmd := m.updatePatternInput(msg)
-
 	return m, cmd
 }
 
@@ -188,28 +189,42 @@ func (m model) View() string {
 	// if m.focusIndex == len(m.inputs) {
 	// 	button = &focusedButton
 	// }
-	fmt.Fprintf(&b, "\n\n")
+	fmt.Fprintf(&b, "\n")
 
-	// b.WriteString(helpStyle.Render("cursor mode is "))
-	// b.WriteString(cursorModeHelpStyle.Render(m.cursorMode.String()))
-	// b.WriteString(helpStyle.Render(" (ctrl+r to change style)"))
+	b.WriteString(helpStyle.Render("Scanned", "123", "of 412345"))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		b.String(),
-		docStyle.Render(m.keyList.View()))
+		docStyle.Render(m.rkeyList.View()))
 }
 
 ////////////////////////////////////
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
-type key struct {
-	title, desc string
+type rkey struct {
+	key     string
+	keyType string // Hash, String, Set, etc.
+	size    int    // in bytes
+	ttl     time.Duration
 }
 
-func (i key) Title() string       { return i.title }
-func (i key) Description() string { return i.desc }
-func (i key) FilterValue() string { return i.title }
+func (i rkey) Title() string {
+	return i.key
+}
+
+func (i rkey) Description() string {
+	return lipgloss.NewStyle().Background(ColorForKeyType(i.keyType)).Render(i.keyType) +
+		" " +
+		lipgloss.NewStyle().Width(20).Render(i.key) +
+		" " +
+		lipgloss.NewStyle().Width(20).Render(strconv.Itoa(i.size)+"bytes") +
+		fmt.Sprintf("%.0f", i.ttl.Seconds()) + "s"
+}
+
+func (i rkey) FilterValue() string {
+	return i.key
+}
 
 ////////////////////////////////////////////
 

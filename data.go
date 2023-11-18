@@ -30,7 +30,6 @@ func find_keys_without_ttl() {
 		if err != nil {
 			panic(err)
 		}
-
 		cmds = append(cmds, shardcmds...)
 		return iter.Err()
 	})
