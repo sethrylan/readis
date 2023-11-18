@@ -49,6 +49,7 @@ func initialModel() model {
 	m.keylist.SetStatusBarItemName("Key", "Keys")
 	m.keylist.SetShowTitle(false)
 	m.keylist.SetShowPagination(true)
+	m.keylist.Styles.FilterCursor = focusedStyle
 	m.keylist.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			m.keyMap.scanMore,
