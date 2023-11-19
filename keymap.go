@@ -3,9 +3,11 @@ package main
 import "github.com/charmbracelet/bubbles/key"
 
 type listKeyMap struct {
-	ScanMore key.Binding
-	PageNext key.Binding
-	PagePrev key.Binding
+	ScanMore   key.Binding
+	CursorUp   key.Binding
+	CursorDown key.Binding
+	PageNext   key.Binding
+	PagePrev   key.Binding
 
 	// toggleSpinner    key.Binding
 	// toggleTitleBar   key.Binding
@@ -27,6 +29,14 @@ func newListKeyMap() *listKeyMap {
 		PagePrev: key.NewBinding(
 			key.WithKeys("left"),
 			key.WithHelp("←", "previous page"),
+		),
+		CursorUp: key.NewBinding(
+			key.WithKeys("up"),
+			key.WithHelp("↑", "up"),
+		),
+		CursorDown: key.NewBinding(
+			key.WithKeys("down"),
+			key.WithHelp("↓", "down"),
 		),
 
 		// insertItem: key.NewBinding(

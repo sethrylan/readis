@@ -21,6 +21,8 @@ import (
 // )
 
 type model struct {
+	data *Data
+
 	// focus  int
 	keyMap *listKeyMap
 
@@ -31,8 +33,17 @@ type model struct {
 	keylist     list.Model
 }
 
+func panicOnError[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 func initialModel() model {
 	m := model{}
+
+	m.data = NewData()
 
 	m.keyMap = newListKeyMap()
 
@@ -54,6 +65,9 @@ func initialModel() model {
 	m.keylist.SetFilteringEnabled(false)
 	m.keylist.Styles.FilterCursor = focusedStyle
 
+	m.keylist.KeyMap.CursorUp = m.keyMap.CursorUp
+	m.keylist.KeyMap.CursorDown = m.keyMap.CursorDown
+
 	m.keylist.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			m.keyMap.ScanMore,
@@ -63,7 +77,6 @@ func initialModel() model {
 	}
 
 	m.keylist.SetHeight(docStyle.GetHeight() - 10)
-
 	return m
 }
 
@@ -72,21 +85,18 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
-			return m, tea.Quit
+			return m, tea.Quit // TODO close data
 		case "enter":
 			// TODO: run search
 			// if m.patternInput.Focused() {
-			i, err := strconv.Atoi(m.patternInput.Value())
-			if err == nil {
-				var items []list.Item
-				m.keysScanned, m.keysTotal, items = scan(i)
-				m.keylist.SetItems(items)
-			}
+			// i, err := strconv.Atoi(m.patternInput.Value())
+			var items []list.Item
+			m.keysScanned, m.keysTotal, items = m.data.ScanMock(panicOnError(strconv.Atoi(m.patternInput.Value())))
+			m.keylist.SetItems(items)
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
@@ -138,11 +148,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var b strings.Builder
-
-	b.WriteString(m.patternInput.View())
+	b.WriteString(
+		lipgloss.JoinHorizontal(
+			lipgloss.Left, lipgloss.NewStyle().Width(50).Render(m.patternInput.View()),
+			m.data.opts.Addrs[0],
+		),
+	)
 	b.WriteRune('\n')
 	b.WriteRune('\n')
-
 	b.WriteString(helpStyle.Render(fmt.Sprintf("Scanned %d of %d", m.keysScanned, m.keysTotal)))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
