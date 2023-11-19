@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -103,26 +102,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	var b strings.Builder
-	b.WriteString(
-		lipgloss.NewStyle().MarginBottom(2).Render(
-			lipgloss.JoinHorizontal(
-				lipgloss.Center,
-				lipgloss.NewStyle().Height(2).Width(30).Render(m.patternInput.View()),
-				lipgloss.NewStyle().PaddingLeft(10).Render(
-					lipgloss.JoinVertical(lipgloss.Right,
-						lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
-						fmt.Sprintf("%d keys", m.data.TotalKeys()),
-					),
-				),
-			),
+
+	input := lipgloss.NewStyle().Height(2).Width(30).Render(m.patternInput.View())
+	status := lipgloss.NewStyle().PaddingLeft(10).Render(
+		lipgloss.JoinVertical(lipgloss.Right,
+			lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
+			fmt.Sprintf("%d keys", m.data.TotalKeys()),
 		),
+	)
+
+	header := lipgloss.NewStyle().MarginBottom(2).Render(
+		lipgloss.JoinHorizontal(lipgloss.Top, input, status),
 	)
 	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		b.String(),
-		docStyle.Render(m.keylist.View()))
+	return docStyle.Render(
+		lipgloss.JoinVertical(lipgloss.Left,
+			header,
+			m.keylist.View(),
+		),
+	)
 }
 
 ////////////////////////////////////
