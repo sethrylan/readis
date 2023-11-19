@@ -28,9 +28,7 @@ type model struct {
 
 	patternInput textinput.Model
 
-	keysScanned int
-	keysTotal   int
-	keylist     list.Model
+	keylist list.Model
 }
 
 func panicOnError[T any](v T, err error) T {
@@ -94,8 +92,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// TODO: run search
 			// if m.patternInput.Focused() {
 			// i, err := strconv.Atoi(m.patternInput.Value())
-			var items []list.Item
-			m.keysScanned, m.keysTotal, items = m.data.ScanMock(panicOnError(strconv.Atoi(m.patternInput.Value())))
+
+			m.data.ResetScan()
+
+			// m.keysScanned, m.keysTotal, items = m.data.ScanMock(panicOnError(strconv.Atoi(m.patternInput.Value())))
+			items := m.data.NewScan(m.patternInput.Value(), 25)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
@@ -156,7 +157,7 @@ func (m model) View() string {
 	)
 	b.WriteRune('\n')
 	b.WriteRune('\n')
-	b.WriteString(helpStyle.Render(fmt.Sprintf("Scanned %d of %d", m.keysScanned, m.keysTotal)))
+	b.WriteString(helpStyle.Render(fmt.Sprintf("Scanned %d of %d", m.data.TotalScanned(), m.data.TotalKeys())))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		b.String(),

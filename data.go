@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -18,11 +17,35 @@ type Data struct {
 	rc *redis.Client
 	cc *redis.ClusterClient
 
-	cursor uint64
+	total   int64
+	count   int64
+	pattern string
+	cursors map[string]uint64
+	scanned map[string]uint64
 }
 
-func (d *Data) ResetCursor() {
-	d.cursor = 0
+func (d *Data) TotalScanned() int64 {
+	var n int64 = 0
+	for _, v := range d.scanned {
+		n += int64(v)
+	}
+	return n
+}
+
+func (d *Data) TotalKeys() int64 {
+	if d.cluster {
+		return d.cc.DBSize(context.Background()).Val()
+	} else {
+		return d.rc.DBSize(context.Background()).Val()
+	}
+}
+
+func (d *Data) ResetScan() {
+	d.total = 0
+	d.count = 0
+	d.pattern = ""
+	d.cursors = make(map[string]uint64)
+	d.scanned = make(map[string]uint64)
 }
 
 func NewData() *Data {
@@ -107,20 +130,26 @@ func (*Data) ScanMock(n int) (int, int, []list.Item) {
 }
 
 // Scan returns the number of keys scanned, the total keys, and the keys found
-func (d *Data) Scan(pattern string, cursor int64, count int64) (int64, int64, []list.Item) {
+func (d *Data) NewScan(pattern string, count int64) []list.Item {
 	var cmds []redis.Cmder
 	var err error
 	var ctx = context.Background()
-	var n, total int64
+
+	var keys []list.Item
+
+	d.ResetScan()
+	d.pattern = pattern
+	d.count = count
 
 	if d.cluster {
-		total = d.cc.DBSize(ctx).Val()
 		err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-			scan := rc.Scan(ctx, 0, pattern, 1000000)
-			page, cursor := scan.Val()
-			d.cursor = cursor
-			n += int64(len(page))
+			currCursor := d.cursors[rc.Options().Addr]
+			scan := rc.Scan(ctx, currCursor, d.pattern, d.count)
+			page, nextCursor := scan.Val()
+			d.cursors[rc.Options().Addr] = nextCursor
+			d.scanned[rc.Options().Addr] += uint64(len(page))
 			iter := scan.Iterator()
+
 			ttlcmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				for iter.Next(ctx) {
 					pipe.TTL(ctx, iter.Val())
@@ -134,15 +163,19 @@ func (d *Data) Scan(pattern string, cursor int64, count int64) (int64, int64, []
 			return iter.Err()
 		})
 	} else {
-		total = d.rc.DBSize(ctx).Val()
-		scan := d.rc.Scan(ctx, 0, pattern, 1000000)
-		page, cursor := scan.Val()
-		d.cursor = cursor
-		n += int64(len(page))
-		iter := d.rc.Scan(ctx, 0, "*", 1000000).Iterator()
-		ttlcmds, err := d.rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		rc := d.rc
+
+		currCursor := d.cursors[rc.Options().Addr]
+		scan := rc.Scan(ctx, currCursor, d.pattern, d.count)
+		page, nextCursor := scan.Val()
+		d.cursors[rc.Options().Addr] = nextCursor
+		d.scanned[rc.Options().Addr] += uint64(len(page))
+		iter := scan.Iterator()
+
+		ttlcmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 			for iter.Next(ctx) {
 				pipe.TTL(ctx, iter.Val())
+				pipe.Type(ctx, iter.Val())
 			}
 			return nil
 		})
@@ -157,54 +190,16 @@ func (d *Data) Scan(pattern string, cursor int64, count int64) (int64, int64, []
 	}
 
 	for _, cmd := range cmds {
-		switch v := cmd.(type) {
+		switch c := cmd.(type) {
 		case *redis.DurationCmd:
-			fmt.Printf("Twice %v is %v\n", v)
+			keys = append(keys, Key{name: c.Args()[1].(string), keyType: randtype(), size: 12, ttl: c.Val()})
+		case *redis.StatusCmd:
+
 		default:
-			fmt.Printf("I don't know about type %T!\n", v)
-		}
-
-	}
-
-	return n, total, nil
-
-}
-
-//////////////////////////
-
-func find_keys_without_ttl() {
-	opts, err := redis.ParseClusterURL(os.Getenv("REDIS_URI"))
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		return
-	}
-
-	rc := redis.NewClusterClient(opts)
-	var cmds []redis.Cmder
-	var ctx = context.Background()
-
-	err = rc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-		iter := rc.Scan(ctx, 0, "*", 1000000).Iterator()
-		shardcmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-			for iter.Next(ctx) {
-				pipe.TTL(ctx, iter.Val())
-			}
-			return nil
-		})
-		if err != nil {
-			panic(err)
-		}
-		cmds = append(cmds, shardcmds...)
-		return iter.Err()
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	for _, cmd := range cmds {
-		if cmd.(*redis.DurationCmd).Val() == -1 {
-			fmt.Println(cmd.Args()[1])
+			panic("unknown type")
+			// fmt.Printf("I don't know about type %T!\n", v)
 		}
 	}
+
+	return keys
 }
