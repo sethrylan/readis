@@ -50,9 +50,9 @@ var allkeys = [...]list.Item{
 	Key{name: "Terrycloth", keyType: "hash", size: 12, ttl: 0},
 }
 
-func scan(n int) []list.Item {
+func scan(n int) (int, int, []list.Item) {
 	n = min(n, len(allkeys))
-	return allkeys[:n]
+	return n, n * 100, allkeys[:n]
 }
 
 //////////////////////////

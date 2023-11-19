@@ -15,18 +15,20 @@ import (
 )
 
 // Focus Areas
-const (
-	PatternInput int = iota
-	KeyList
-)
+// const (
+// 	PatternInput int = iota
+// 	KeyList
+// )
 
 type model struct {
-	focus  int
+	// focus  int
 	keyMap *listKeyMap
 
 	patternInput textinput.Model
 
-	keylist list.Model
+	keysScanned int
+	keysTotal   int
+	keylist     list.Model
 }
 
 func initialModel() model {
@@ -73,13 +75,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "esc", "q":
 			return m, tea.Quit
 		case "enter":
-			// Did the user press enter while pattern input was focused?
 			// TODO: run search
-			if m.patternInput.Focused() {
-				i, err := strconv.Atoi(m.patternInput.Value())
-				if err == nil {
-					m.keylist.SetItems(scan(i))
-				}
+			// if m.patternInput.Focused() {
+			i, err := strconv.Atoi(m.patternInput.Value())
+			if err == nil {
+				var items []list.Item
+				m.keysScanned, m.keysTotal, items = scan(i)
+				m.keylist.SetItems(items)
 			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
@@ -90,38 +92,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
 
-		// Set focus to next input
-		case "tab", "shift+tab":
-			s := msg.String()
+			// // Set focus to next input
+			// case "tab", "shift+tab":
+			// 	// Cycle focus
+			// 	if msg.String() == "shift+tab" {
+			// 		m.focus--
+			// 	} else {
+			// 		m.focus++
+			// 	}
 
-			// Cycle focus
-			if s == "shift+tab" {
-				m.focus--
-			} else {
-				m.focus++
-			}
+			// 	if m.focus > 1 {
+			// 		m.focus = 0
+			// 	} else if m.focus < 0 {
+			// 		m.focus = 1
+			// 	}
 
-			if m.focus > 1 {
-				m.focus = 0
-			} else if m.focus < 0 {
-				m.focus = 1
-			}
-			var cmd tea.Cmd
-
-			// Set focus to the input at the new focus index
-			switch m.focus {
-			case PatternInput:
-				m.patternInput.Focus()
-				m.patternInput.PromptStyle = focusedStyle
-				m.patternInput.TextStyle = focusedStyle
-			case KeyList:
-				m.patternInput.Blur()
-				m.patternInput.PromptStyle = noStyle
-				m.patternInput.TextStyle = noStyle
-			}
-
-			return m, tea.Batch(cmd)
-
+			// 	// Set focus to the input at the new focus index
+			// 	switch m.focus {
+			// 	case PatternInput:
+			// 		m.patternInput.Focus()
+			// 		m.patternInput.PromptStyle = focusedStyle
+			// 		m.patternInput.TextStyle = focusedStyle
+			// 	case KeyList:
+			// 		m.patternInput.Blur()
+			// 		m.patternInput.PromptStyle = noStyle
+			// 		m.patternInput.TextStyle = noStyle
+			// 	}
+			// 	return m, textinput.Blink
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
@@ -130,17 +127,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle character input and blinking
-	cmd := m.updatePatternInput(msg)
-	return m, cmd
-}
-
-func (m *model) updatePatternInput(msg tea.Msg) tea.Cmd {
-	// Only text inputs with Focus() set will respond, so it's safe to simply
-	// update all of them here without any further logic.
-
 	var cmd tea.Cmd
-	m.patternInput, _ = m.patternInput.Update(msg)
-	return tea.Batch(cmd)
+	m.patternInput, cmd = m.patternInput.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
@@ -150,7 +139,7 @@ func (m model) View() string {
 	b.WriteRune('\n')
 	b.WriteRune('\n')
 
-	b.WriteString(helpStyle.Render("Scanned", "123", "of 412345"))
+	b.WriteString(helpStyle.Render(fmt.Sprintf("Scanned %d of %d", m.keysScanned, m.keysTotal)))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		b.String(),
