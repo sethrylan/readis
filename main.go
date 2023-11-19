@@ -51,10 +51,14 @@ func initialModel() model {
 	m.keylist.SetStatusBarItemName("Key", "Keys")
 	m.keylist.SetShowTitle(false)
 	m.keylist.SetShowPagination(true)
+	m.keylist.SetFilteringEnabled(false)
 	m.keylist.Styles.FilterCursor = focusedStyle
+
 	m.keylist.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			m.keyMap.scanMore,
+			m.keyMap.ScanMore,
+			m.keyMap.PageNext,
+			m.keyMap.PagePrev,
 		}
 	}
 
