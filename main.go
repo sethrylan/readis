@@ -81,11 +81,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "esc", "q":
 			return m, tea.Quit // TODO close data
 		case "enter":
-
 			m.data.ResetScan()
 
 			// m.keysScanned, m.keysTotal, items = m.data.ScanMock(panicOnError(strconv.Atoi(m.patternInput.Value())))
-			items := m.data.NewScan(m.patternInput.Value(), 25)
+			items := m.data.NewScan(m.patternInput.Value(), 10)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
@@ -95,6 +94,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
+		case "ctrl+m":
+			m.data.ScanMore()
+
+			// TODO // m.keylist.SetShowHelp(!m.keylist.ShowHelp())
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
@@ -112,13 +115,15 @@ func (m model) View() string {
 	var b strings.Builder
 	b.WriteString(
 		lipgloss.JoinHorizontal(
-			lipgloss.Left, lipgloss.NewStyle().Width(50).Render(m.patternInput.View()),
-			m.data.opts.Addrs[0],
+			lipgloss.Left,
+			lipgloss.NewStyle().Width(30).Render(m.patternInput.View()),
+			lipgloss.NewStyle().Width(70).Render(m.data.opts.Addrs[0]),
+			strconv.FormatInt(m.data.TotalKeys(), 10), " Keys",
 		),
 	)
 	b.WriteRune('\n')
 	b.WriteRune('\n')
-	b.WriteString(helpStyle.Render(fmt.Sprintf("Scanned %d of %d", m.data.TotalScanned(), m.data.TotalKeys())))
+	b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		b.String(),

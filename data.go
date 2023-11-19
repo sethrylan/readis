@@ -24,10 +24,11 @@ type Data struct {
 	scanned map[string]uint64
 }
 
-func (d *Data) TotalScanned() int64 {
-	var n int64 = 0
-	for _, v := range d.scanned {
-		n += int64(v)
+// TotalScanned returns an approximate total number of keys scanned so far.
+func (d *Data) TotalFound() int64 {
+	var n int64
+	for _, c := range d.scanned {
+		n += int64(c)
 	}
 	return n
 }
@@ -131,33 +132,47 @@ func (*Data) ScanMock(n int) (int, int, []list.Item) {
 
 // Scan returns the number of keys scanned, the total keys, and the keys found
 func (d *Data) NewScan(pattern string, count int64) []list.Item {
-	var cmds []redis.Cmder
-	var err error
 	var ctx = context.Background()
 
 	d.ResetScan()
 	d.pattern = pattern
 	d.count = count
 
+	keys := d.scan(ctx)
+
+	var items []list.Item
+	for _, key := range keys {
+		items = append(items, *key)
+	}
+
+	return items
+}
+
+func (d *Data) scan(ctx context.Context) map[string]*Key {
+	var cmds []redis.Cmder
+	var err error
+
 	if d.cluster {
 		err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
 			currCursor := d.cursors[rc.Options().Addr]
 			scan := rc.Scan(ctx, currCursor, d.pattern, d.count)
-			page, nextCursor := scan.Val()
+			_, nextCursor := scan.Val()
 			d.cursors[rc.Options().Addr] = nextCursor
-			d.scanned[rc.Options().Addr] += uint64(len(page))
 			iter := scan.Iterator()
 
-			ttlcmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				for iter.Next(ctx) {
+					d.scanned[rc.Options().Addr]++
 					pipe.TTL(ctx, iter.Val())
+					pipe.Type(ctx, iter.Val())
+					pipe.MemoryUsage(ctx, iter.Val())
 				}
 				return nil
 			})
 			if err != nil {
 				panic(err)
 			}
-			cmds = append(cmds, ttlcmds...)
+			cmds = append(cmds, shardCmds...)
 			return iter.Err()
 		})
 	} else {
@@ -165,23 +180,20 @@ func (d *Data) NewScan(pattern string, count int64) []list.Item {
 
 		currCursor := d.cursors[rc.Options().Addr]
 		scan := rc.Scan(ctx, currCursor, d.pattern, d.count)
-		page, nextCursor := scan.Val()
+		_, nextCursor := scan.Val()
 		d.cursors[rc.Options().Addr] = nextCursor
-		d.scanned[rc.Options().Addr] += uint64(len(page))
+
 		iter := scan.Iterator()
 
-		ttlcmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 			for iter.Next(ctx) {
+				d.scanned[rc.Options().Addr]++
 				pipe.TTL(ctx, iter.Val())
 				pipe.Type(ctx, iter.Val())
 				pipe.MemoryUsage(ctx, iter.Val())
 			}
 			return nil
 		})
-		if err != nil {
-			panic(err)
-		}
-		cmds = append(cmds, ttlcmds...)
 	}
 
 	if err != nil {
@@ -191,14 +203,13 @@ func (d *Data) NewScan(pattern string, count int64) []list.Item {
 	keys := make(map[string]*Key)
 
 	for _, cmd := range cmds {
-
 		key := cmd.Args()[1].(string)
 		if key == "usage" {
 			key = cmd.Args()[2].(string)
 		}
 
 		if _, ok := keys[key]; !ok {
-			keys[key] = &Key{name: key, size: 13}
+			keys[key] = &Key{name: key}
 		}
 
 		switch c := cmd.(type) {
@@ -213,8 +224,12 @@ func (d *Data) NewScan(pattern string, count int64) []list.Item {
 		}
 	}
 
+	return keys
+}
+
+func (d *Data) ScanMore() []list.Item {
 	var items []list.Item
-	for _, key := range keys {
+	for _, key := range d.scan(context.Background()) {
 		items = append(items, *key)
 	}
 
