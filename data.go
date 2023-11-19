@@ -99,7 +99,7 @@ func randtype() string {
 }
 
 var allkeys = [...]list.Item{
-	Key{name: "Raspberry Pi’s", keyType: randtype(), size: rand.Intn(100), ttl: time.Duration(rand.Intn(100000000000))},
+	Key{name: "Raspberry Pi’s", keyType: randtype(), size: int64(rand.Intn(100)), ttl: time.Duration(rand.Intn(100000000000))},
 	Key{name: "Nutella", keyType: randtype(), size: 12, ttl: 0},
 	Key{name: "Bitter melon", keyType: randtype(), size: 12, ttl: 0},
 	Key{name: "Nice socks", keyType: randtype(), size: 12, ttl: 0},
@@ -134,8 +134,6 @@ func (d *Data) NewScan(pattern string, count int64) []list.Item {
 	var cmds []redis.Cmder
 	var err error
 	var ctx = context.Background()
-
-	var keys []list.Item
 
 	d.ResetScan()
 	d.pattern = pattern
@@ -176,6 +174,7 @@ func (d *Data) NewScan(pattern string, count int64) []list.Item {
 			for iter.Next(ctx) {
 				pipe.TTL(ctx, iter.Val())
 				pipe.Type(ctx, iter.Val())
+				pipe.MemoryUsage(ctx, iter.Val())
 			}
 			return nil
 		})
@@ -189,17 +188,35 @@ func (d *Data) NewScan(pattern string, count int64) []list.Item {
 		panic(err)
 	}
 
+	keys := make(map[string]*Key)
+
 	for _, cmd := range cmds {
+
+		key := cmd.Args()[1].(string)
+		if key == "usage" {
+			key = cmd.Args()[2].(string)
+		}
+
+		if _, ok := keys[key]; !ok {
+			keys[key] = &Key{name: key, size: 13}
+		}
+
 		switch c := cmd.(type) {
 		case *redis.DurationCmd:
-			keys = append(keys, Key{name: c.Args()[1].(string), keyType: randtype(), size: 12, ttl: c.Val()})
+			keys[key].ttl = c.Val()
 		case *redis.StatusCmd:
-
+			keys[key].keyType = c.Val()
+		case *redis.IntCmd:
+			keys[key].size = c.Val()
 		default:
 			panic("unknown type")
-			// fmt.Printf("I don't know about type %T!\n", v)
 		}
 	}
 
-	return keys
+	var items []list.Item
+	for _, key := range keys {
+		items = append(items, *key)
+	}
+
+	return items
 }

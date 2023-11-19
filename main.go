@@ -169,14 +169,14 @@ func (m model) View() string {
 type Key struct {
 	name    string
 	keyType string // Hash, String, Set, etc.
-	size    int    // in bytes
+	size    int64  // in bytes
 	ttl     time.Duration
 }
 
 func (k Key) Title() string {
 	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.keyType)).Render(k.keyType)) +
 		lipgloss.NewStyle().Width(25).Render(k.name) +
-		lipgloss.NewStyle().Width(8).Render(strconv.Itoa(k.size)+"B") +
+		lipgloss.NewStyle().Width(12).Render(strconv.FormatInt(k.size, 10)+"B") +
 		lipgloss.NewStyle().Width(8).Render(fmt.Sprintf("%.0fs", k.ttl.Seconds()))
 }
 
