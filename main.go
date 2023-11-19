@@ -15,13 +15,10 @@ import (
 )
 
 type model struct {
-	data *Data
-
-	keyMap *listKeyMap
-
+	data         *Data
+	keyMap       *listKeyMap
 	patternInput textinput.Model
-
-	keylist list.Model
+	keylist      list.Model
 }
 
 func panicOnError[T any](v T, err error) T {
@@ -35,7 +32,6 @@ func initialModel() model {
 	m := model{}
 
 	m.data = NewData()
-
 	m.keyMap = newListKeyMap()
 
 	m.patternInput = textinput.New()
@@ -46,18 +42,17 @@ func initialModel() model {
 	m.patternInput.PromptStyle = focusedStyle
 	m.patternInput.TextStyle = focusedStyle
 
-	d := list.NewDefaultDelegate()
-	d.ShowDescription = false
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
 
-	m.keylist = list.New([]list.Item{}, d, 0, 0)
+	m.keylist = list.New([]list.Item{}, delegate, 0, 0)
 	m.keylist.SetStatusBarItemName("Key", "Keys")
 	m.keylist.SetShowTitle(false)
 	m.keylist.SetShowPagination(true)
 	m.keylist.SetFilteringEnabled(false)
-
+	m.keylist.SetHeight(docStyle.GetHeight() - 10)
 	m.keylist.KeyMap.CursorUp = m.keyMap.CursorUp
 	m.keylist.KeyMap.CursorDown = m.keyMap.CursorDown
-
 	m.keylist.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			m.keyMap.ScanMore,
@@ -66,7 +61,6 @@ func initialModel() model {
 		}
 	}
 
-	m.keylist.SetHeight(docStyle.GetHeight() - 10)
 	return m
 }
 
@@ -82,26 +76,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit // TODO close data
 		case "enter":
 			m.data.ResetScan()
-
 			// m.keysScanned, m.keysTotal, items = m.data.ScanMock(panicOnError(strconv.Atoi(m.patternInput.Value())))
 			items := m.data.NewScan(m.patternInput.Value(), 10)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
-
 		case "up", "down", "left", "right":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
 		case "ctrl+m":
 			m.data.ScanMore()
-
-			// TODO // m.keylist.SetShowHelp(!m.keylist.ShowHelp())
+			// m.keylist.SetShowHelp(!m.keylist.ShowHelp())
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		patternInputHeight := 3 // TODO: calculate this value
+		patternInputHeight := 4 // TODO: calculate this value from height + margin
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
 	}
 
@@ -114,16 +105,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	var b strings.Builder
 	b.WriteString(
-		lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			lipgloss.NewStyle().Width(30).Render(m.patternInput.View()),
-			lipgloss.NewStyle().Width(70).Render(m.data.opts.Addrs[0]),
-			strconv.FormatInt(m.data.TotalKeys(), 10), " Keys",
+		lipgloss.NewStyle().MarginBottom(2).Render(
+			lipgloss.JoinHorizontal(
+				lipgloss.Center,
+				lipgloss.NewStyle().Height(2).Width(30).Render(m.patternInput.View()),
+				lipgloss.NewStyle().PaddingLeft(10).Render(
+					lipgloss.JoinVertical(lipgloss.Right,
+						lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
+						fmt.Sprintf("%d keys", m.data.TotalKeys()),
+					),
+				),
+			),
 		),
 	)
-	b.WriteRune('\n')
-	b.WriteRune('\n')
-	b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
+	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		b.String(),
