@@ -14,16 +14,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Focus Areas
-// const (
-// 	PatternInput int = iota
-// 	KeyList
-// )
-
 type model struct {
 	data *Data
 
-	// focus  int
 	keyMap *listKeyMap
 
 	patternInput textinput.Model
@@ -61,7 +54,6 @@ func initialModel() model {
 	m.keylist.SetShowTitle(false)
 	m.keylist.SetShowPagination(true)
 	m.keylist.SetFilteringEnabled(false)
-	m.keylist.Styles.FilterCursor = focusedStyle
 
 	m.keylist.KeyMap.CursorUp = m.keyMap.CursorUp
 	m.keylist.KeyMap.CursorDown = m.keyMap.CursorDown
@@ -89,9 +81,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "esc", "q":
 			return m, tea.Quit // TODO close data
 		case "enter":
-			// TODO: run search
-			// if m.patternInput.Focused() {
-			// i, err := strconv.Atoi(m.patternInput.Value())
 
 			m.data.ResetScan()
 
@@ -106,34 +95,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
-
-			// // Set focus to next input
-			// case "tab", "shift+tab":
-			// 	// Cycle focus
-			// 	if msg.String() == "shift+tab" {
-			// 		m.focus--
-			// 	} else {
-			// 		m.focus++
-			// 	}
-
-			// 	if m.focus > 1 {
-			// 		m.focus = 0
-			// 	} else if m.focus < 0 {
-			// 		m.focus = 1
-			// 	}
-
-			// 	// Set focus to the input at the new focus index
-			// 	switch m.focus {
-			// 	case PatternInput:
-			// 		m.patternInput.Focus()
-			// 		m.patternInput.PromptStyle = focusedStyle
-			// 		m.patternInput.TextStyle = focusedStyle
-			// 	case KeyList:
-			// 		m.patternInput.Blur()
-			// 		m.patternInput.PromptStyle = noStyle
-			// 		m.patternInput.TextStyle = noStyle
-			// 	}
-			// 	return m, textinput.Blink
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
