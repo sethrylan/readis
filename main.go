@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -18,6 +20,7 @@ type model struct {
 	keyMap       *listKeyMap
 	patternInput textinput.Model
 	keylist      list.Model
+	valueview    viewport.Model
 }
 
 func panicOnError[T any](v T, err error) T {
@@ -60,7 +63,19 @@ func initialModel() model {
 		}
 	}
 
+	m.valueview = newvalueview()
+
 	return m
+}
+
+func newvalueview() viewport.Model {
+	vp := viewport.New(40, 20)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		PaddingRight(2)
+
+	return vp
 }
 
 func (m model) Init() tea.Cmd {
@@ -84,6 +99,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "down", "left", "right":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
+
+			m.keylist.SelectedItem()
+			// markdown := m.data.Fetch(m.keylist.SelectedItem())
+
+			markdown := `			
+			| Name        | Price | Notes                           |
+			| ---         | ---   | ---                             |
+			| Tsukemono   | $2    | Just an appetizer               |
+			| Tomato Soup | $4    | Made with San Marzano tomatoes  |
+			| Okonomiyaki | $4    | Takes a few minutes to make     |
+			| Curry       | $3    | We can add squash if you’d like |`
+
+			renderer := panicOnError(glamour.NewTermRenderer(
+				glamour.WithAutoStyle(),
+				glamour.WithWordWrap(m.valueview.Width),
+			))
+
+			str := panicOnError(renderer.Render(markdown))
+			m.valueview.SetContent(str)
+
 			return m, tea.Batch(cmd)
 		case "ctrl+m":
 			m.data.ScanMore()
@@ -104,24 +139,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 
 	input := lipgloss.NewStyle().Height(2).Width(30).Render(m.patternInput.View())
-	status := lipgloss.NewStyle().PaddingLeft(10).Render(
+	statusBlock := lipgloss.NewStyle().PaddingLeft(10).Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
 			fmt.Sprintf("%d keys", m.data.TotalKeys()),
 		),
 	)
 
-	header := lipgloss.NewStyle().MarginBottom(2).Render(
-		lipgloss.JoinHorizontal(lipgloss.Top, input, status),
+	headerBlock := lipgloss.NewStyle().MarginBottom(2).Render(
+		lipgloss.JoinHorizontal(lipgloss.Top, input, statusBlock),
 	)
+
+	resultsBlock := lipgloss.JoinHorizontal(lipgloss.Top,
+		m.keylist.View(),
+		m.valueview.View(),
+	)
+
 	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
 
 	return docStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
-			header,
-			m.keylist.View(),
+			headerBlock,
+			resultsBlock,
 		),
 	)
+
 }
 
 ////////////////////////////////////
