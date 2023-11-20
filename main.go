@@ -169,14 +169,14 @@ func (m model) View() string {
 ////////////////////////////////////
 
 type Key struct {
-	name    string
-	keyType string // Hash, String, Set, etc.
-	size    int64  // in bytes
-	ttl     time.Duration
+	name     string
+	datatype string // Hash, String, Set, etc; https://redis.io/commands/type/
+	size     int64  // in bytes
+	ttl      time.Duration
 }
 
 func (k Key) Title() string {
-	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.keyType)).Render(k.keyType)) +
+	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
 		lipgloss.NewStyle().Width(25).Render(k.name) +
 		lipgloss.NewStyle().Width(12).Render(strconv.FormatInt(k.size, 10)+"B") +
 		lipgloss.NewStyle().Width(8).Render(fmt.Sprintf("%.0fs", k.ttl.Seconds()))
