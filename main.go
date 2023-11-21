@@ -128,7 +128,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 
-	input := headerStyle.Copy().Width(79).Render(m.patternInput.View())
+	input := headerStyle.Copy().Width(102).Render(m.patternInput.View())
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			m.data.opts.Addrs[0],
@@ -173,7 +173,7 @@ func (k Key) Title() string {
 		ttl = humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
 	}
 	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
-		lipgloss.NewStyle().Width(45).Render(k.name) +
+		lipgloss.NewStyle().Width(78).Render(k.name) +
 		lipgloss.NewStyle().Width(9).Render(ttl) +
 		lipgloss.NewStyle().Width(7).Render(humanize.Bytes(k.size))
 }
