@@ -8,7 +8,7 @@ var (
 	cursorStyle      = focusedStyle.Copy()
 	helpStyle        = blurredStyle.Copy()
 	docStyle         = lipgloss.NewStyle().Margin(1, 2)
-	headerStyle      = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("#c9510c")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#0a2b3b"))
+	headerStyle      = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("#c9510c")).Bold(true).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#0a2b3b"))
 	statusBlockStyle = headerStyle.Copy().Width(80).Align(lipgloss.Right) // same width as valueview
 
 	viewportStyle = lipgloss.NewStyle().

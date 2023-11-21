@@ -96,6 +96,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmd)
 		case "up", "down", "left", "right":
 			var cmd tea.Cmd
+			m.valueview.SetContent("")
 			m.keylist, cmd = m.keylist.Update(msg)
 			if m.keylist.SelectedItem() != nil {
 				markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
@@ -179,7 +180,7 @@ func (k Key) Title() string {
 	}
 	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
 		lipgloss.NewStyle().Width(78).Render(k.name) +
-		lipgloss.NewStyle().Width(9).Render(ttl) +
+		lipgloss.NewStyle().Width(11).Render(ttl) +
 		lipgloss.NewStyle().Width(7).Render(humanize.Bytes(k.size))
 }
 
