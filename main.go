@@ -65,6 +65,7 @@ func initialModel() model {
 	}
 
 	m.valueview = newvalueview()
+	m.valueview.Height = m.keylist.Height()
 
 	return m
 }
@@ -116,6 +117,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h, v := docStyle.GetFrameSize()
 		patternInputHeight := headerStyle.GetVerticalFrameSize()
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
+		m.valueview.Height = m.keylist.Height() - 5 // adjust for pagination and help message
 	}
 
 	// Handle character input
