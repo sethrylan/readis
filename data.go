@@ -278,21 +278,20 @@ func (d *Data) Fetch(key Key) string {
 			markdown += fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member)
 		}
 		return markdown
-
 	case "hash":
 		markdown := "| field | value |\n| --- | --- |\n"
 		for k, v := range uc.HGetAll(ctx, key.name).Val() {
-			markdown += fmt.Sprintf("| `%s` | `%s` |\n", k, v)
+			markdown += fmt.Sprintf("| %s | %s |\n", k, v)
 		}
 		return markdown
 	default:
 		return `
-		| Name        | Price | Notes                           |
-		| ---         | ---   | ---                             |
-		| Tsukemono   | $2    | Just an appetizer               |
-		| Tomato Soup | $4    | Made with San Marzano tomatoes  |
-		| Okonomiyaki | $4    | Takes a few minutes to make     |
-		| Curry       | $3    | We can add squash if you’d like |`
+| Name        | Price | Notes                           |
+| ---         | ---   | ---                             |
+| Tsukemono   | $2    | Just an appetizer               |
+| Tomato Soup | $4    | Made with San Marzano tomatoes  |
+| Okonomiyaki | $4    | Takes a few minutes to make     |
+| Curry       | $3    | We can add squash if you’d like |`
 
 	}
 
