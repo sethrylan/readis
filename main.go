@@ -38,7 +38,7 @@ func initialModel() model {
 
 	m.patternInput = textinput.New()
 	m.patternInput.Cursor.Style = cursorStyle
-	m.patternInput.CharLimit = 32
+	m.patternInput.CharLimit = 77
 	m.patternInput.Placeholder = "Pattern"
 	m.patternInput.Focus()
 	m.patternInput.PromptStyle = focusedStyle
