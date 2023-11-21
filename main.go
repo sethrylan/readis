@@ -100,10 +100,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "down", "left", "right":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-
-			// m.keylist.SelectedItem()
 			markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
-
 			renderer := panicOnError(glamour.NewTermRenderer(
 				glamour.WithAutoStyle(),
 				glamour.WithWordWrap(m.valueview.Width),
