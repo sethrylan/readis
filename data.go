@@ -253,15 +253,28 @@ func (d *Data) Fetch(key Key) string {
 			return fmt.Sprintf("```%s```", r)
 		}
 	case "list":
-		return fmt.Sprintf("%v", uc.LRange(ctx, key.name, 0, -1).Val())
+		markdown := ""
+		for _, v := range uc.LRange(ctx, key.name, 0, -1).Val() {
+			markdown += fmt.Sprintf("- `%v`\n", v)
+		}
+		return markdown
 	case "set":
-		return fmt.Sprintf("%v", uc.SMembers(ctx, key.name).Val())
+		markdown := ""
+		for _, v := range uc.SMembers(ctx, key.name).Val() {
+			markdown += fmt.Sprintf("- `%v`\n", v)
+		}
+		return markdown
 	case "zset":
-		return fmt.Sprintf("%v", uc.ZRangeWithScores(ctx, key.name, 0, -1).Val())
+		markdown := "| score | value |\n| --- | --- |\n"
+		for _, z := range uc.ZRangeWithScores(ctx, key.name, 0, -1).Val() {
+			markdown += fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member)
+		}
+		return markdown
+
 	case "hash":
 		markdown := "| field | value |\n| --- | --- |\n"
 		for k, v := range uc.HGetAll(ctx, key.name).Val() {
-			markdown += fmt.Sprintf("| %s | %s |\n", k, v)
+			markdown += fmt.Sprintf("| `%s` | `%s` |\n", k, v)
 		}
 		return markdown
 	default:

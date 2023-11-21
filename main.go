@@ -69,7 +69,7 @@ func initialModel() model {
 }
 
 func newvalueview() viewport.Model {
-	vp := viewport.New(40, 20)
+	vp := viewport.New(60, 20)
 	vp.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
@@ -131,7 +131,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 
 	input := headerStyle.Copy().Width(79).Render(m.patternInput.View())
-	statusBlock := headerStyle.Copy().Render(
+	statusBlock := headerStyle.Copy().Width(60).Render( // same width as valueview
 		lipgloss.JoinVertical(lipgloss.Right,
 			lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
 			fmt.Sprintf("%d keys", m.data.TotalKeys()),
