@@ -114,6 +114,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// m.keylist.SetShowHelp(!m.keylist.ShowHelp())
 		}
 	case tea.WindowSizeMsg:
+		// Note that WindowSizeMsg is sent before the first render and then again every resize.
 		h, v := docStyle.GetFrameSize()
 		patternInputHeight := headerStyle.GetVerticalFrameSize()
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
@@ -140,9 +141,13 @@ func (m model) View() string {
 		lipgloss.JoinHorizontal(lipgloss.Top, input, statusBlock),
 	)
 
+	var valueBlock string
+	if len(m.keylist.VisibleItems()) > 0 {
+		valueBlock = m.valueview.View()
+	}
 	resultsBlock := lipgloss.JoinHorizontal(lipgloss.Top,
 		m.keylist.View(),
-		m.valueview.View(),
+		valueBlock,
 	)
 
 	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
