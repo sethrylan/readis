@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -13,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
 )
 
 type model struct {
@@ -100,16 +100,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 
-			m.keylist.SelectedItem()
-			// markdown := m.data.Fetch(m.keylist.SelectedItem())
-
-			markdown := `			
-			| Name        | Price | Notes                           |
-			| ---         | ---   | ---                             |
-			| Tsukemono   | $2    | Just an appetizer               |
-			| Tomato Soup | $4    | Made with San Marzano tomatoes  |
-			| Okonomiyaki | $4    | Takes a few minutes to make     |
-			| Curry       | $3    | We can add squash if you’d like |`
+			// m.keylist.SelectedItem()
+			markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
 
 			renderer := panicOnError(glamour.NewTermRenderer(
 				glamour.WithAutoStyle(),
@@ -126,7 +118,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		patternInputHeight := 4 // TODO: calculate this value from height + margin
+		patternInputHeight := headerStyle.GetVerticalFrameSize()
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
 	}
 
@@ -138,15 +130,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 
-	input := lipgloss.NewStyle().Height(2).Width(30).Render(m.patternInput.View())
-	statusBlock := lipgloss.NewStyle().PaddingLeft(10).Render(
+	input := headerStyle.Copy().Width(79).Render(m.patternInput.View())
+	statusBlock := headerStyle.Copy().Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
 			fmt.Sprintf("%d keys", m.data.TotalKeys()),
 		),
 	)
 
-	headerBlock := lipgloss.NewStyle().MarginBottom(2).Render(
+	headerBlock := lipgloss.NewStyle().Render(
 		lipgloss.JoinHorizontal(lipgloss.Top, input, statusBlock),
 	)
 
@@ -171,15 +163,21 @@ func (m model) View() string {
 type Key struct {
 	name     string
 	datatype string // Hash, String, Set, etc; https://redis.io/commands/type/
-	size     int64  // in bytes
+	size     uint64 // in bytes
 	ttl      time.Duration
 }
 
 func (k Key) Title() string {
+	var ttl string
+	if k.ttl == -1 {
+		ttl = "∞"
+	} else {
+		ttl = humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
+	}
 	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
-		lipgloss.NewStyle().Width(25).Render(k.name) +
-		lipgloss.NewStyle().Width(12).Render(strconv.FormatInt(k.size, 10)+"B") +
-		lipgloss.NewStyle().Width(8).Render(fmt.Sprintf("%.0fs", k.ttl.Seconds()))
+		lipgloss.NewStyle().Width(45).Render(k.name) +
+		lipgloss.NewStyle().Width(9).Render(ttl) +
+		lipgloss.NewStyle().Width(7).Render(humanize.Bytes(k.size))
 }
 
 func (k Key) Description() string {

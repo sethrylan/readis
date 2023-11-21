@@ -18,7 +18,7 @@ docker run --name redis -p 6379:6379 redis --enable-debug-command yes
 
 
 
-DEBUG POPULATE 1000 test 1000000
+DEBUG POPULATE 1000 test 40
 
 
 

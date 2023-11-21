@@ -8,6 +8,7 @@ var (
 	cursorStyle  = focusedStyle.Copy()
 	helpStyle    = blurredStyle.Copy()
 	docStyle     = lipgloss.NewStyle().Margin(1, 2)
+	headerStyle  = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("205")).Border(lipgloss.RoundedBorder())
 
 	// noStyle      = lipgloss.NewStyle()
 	// cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))

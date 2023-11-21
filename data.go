@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -89,7 +90,7 @@ func NewData() *Data {
 func randtype() string {
 	types := []string{
 		"set",
-		"sorted set",
+		"zset",
 		"hash",
 		"string",
 		"list",
@@ -100,7 +101,7 @@ func randtype() string {
 }
 
 var allkeys = [...]list.Item{
-	Key{name: "Raspberry Pi’s", datatype: randtype(), size: int64(rand.Intn(100)), ttl: time.Duration(rand.Intn(100000000000))},
+	Key{name: "Raspberry Pi’s", datatype: randtype(), size: uint64(rand.Intn(100)), ttl: time.Duration(rand.Intn(100000000000))},
 	Key{name: "Nutella", datatype: randtype(), size: 12, ttl: 0},
 	Key{name: "Bitter melon", datatype: randtype(), size: 12, ttl: 0},
 	Key{name: "Nice socks", datatype: randtype(), size: 12, ttl: 0},
@@ -218,7 +219,7 @@ func (d *Data) scan(ctx context.Context) map[string]*Key {
 		case *redis.StatusCmd:
 			keys[key].datatype = c.Val()
 		case *redis.IntCmd:
-			keys[key].size = c.Val()
+			keys[key].size = uint64(c.Val())
 		default:
 			panic("unknown type")
 		}
@@ -234,4 +235,46 @@ func (d *Data) ScanMore() []list.Item {
 	}
 
 	return items
+}
+
+func (d *Data) Fetch(key Key) string {
+	var ctx = context.Background()
+	var uc redis.UniversalClient
+	if d.cluster {
+		uc = d.cc
+	} else {
+		uc = d.rc
+	}
+
+	switch key.datatype {
+	case "string":
+		r, err := uc.Get(ctx, key.name).Result()
+		if err == nil {
+			return fmt.Sprintf("```%s```", r)
+		}
+	case "list":
+		return fmt.Sprintf("%v", uc.LRange(ctx, key.name, 0, -1).Val())
+	case "set":
+		return fmt.Sprintf("%v", uc.SMembers(ctx, key.name).Val())
+	case "zset":
+		return fmt.Sprintf("%v", uc.ZRangeWithScores(ctx, key.name, 0, -1).Val())
+	case "hash":
+		markdown := "| field | value |\n| --- | --- |\n"
+		for k, v := range uc.HGetAll(ctx, key.name).Val() {
+			markdown += fmt.Sprintf("| %s | %s |\n", k, v)
+		}
+		return markdown
+	default:
+		return `
+		| Name        | Price | Notes                           |
+		| ---         | ---   | ---                             |
+		| Tsukemono   | $2    | Just an appetizer               |
+		| Tomato Soup | $4    | Made with San Marzano tomatoes  |
+		| Okonomiyaki | $4    | Takes a few minutes to make     |
+		| Curry       | $3    | We can add squash if you’d like |`
+
+	}
+
+	return "could not get value for " + key.datatype
+
 }
