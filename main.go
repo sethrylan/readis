@@ -49,6 +49,7 @@ func initialModel() model {
 
 	m.keylist = list.New([]list.Item{}, delegate, 0, 0)
 	m.keylist.SetStatusBarItemName("Key", "Keys")
+	m.keylist.SetShowStatusBar(false)
 	m.keylist.SetShowTitle(false)
 	m.keylist.SetShowPagination(true)
 	m.keylist.SetFilteringEnabled(false)
@@ -87,10 +88,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
-			return m, tea.Quit // TODO close data
+			m.data.Close()
+			return m, tea.Quit
 		case "enter":
 			m.data.ResetScan()
-			// m.keysScanned, m.keysTotal, items = m.data.ScanMock(panicOnError(strconv.Atoi(m.patternInput.Value())))
 			items := m.data.NewScan(m.patternInput.Value(), 10)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd

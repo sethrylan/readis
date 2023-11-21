@@ -131,6 +131,14 @@ func (*Data) ScanMock(n int) (int, int, []list.Item) {
 	return n, n * 100, allkeys[:n]
 }
 
+func (d *Data) Close() {
+	if d.cluster {
+		d.cc.Close()
+	} else {
+		d.rc.Close()
+	}
+}
+
 // Scan returns the number of keys scanned, the total keys, and the keys found
 func (d *Data) NewScan(pattern string, count int64) []list.Item {
 	var ctx = context.Background()
@@ -289,5 +297,4 @@ func (d *Data) Fetch(key Key) string {
 	}
 
 	return "could not get value for " + key.datatype
-
 }
