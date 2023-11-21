@@ -20,7 +20,7 @@ type model struct {
 	keyMap       *listKeyMap
 	patternInput textinput.Model
 	keylist      list.Model
-	valueview    viewport.Model
+	viewport     viewport.Model
 }
 
 // TODO: errMsg https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/chat/main.go#L26
@@ -66,9 +66,9 @@ func initialModel() model {
 		}
 	}
 
-	m.valueview = newvalueview()
+	m.viewport = newvalueview()
 	// m.valueview.HighPerformanceRendering = true // TODO
-	m.valueview.Height = m.keylist.Height()
+	m.viewport.Height = m.keylist.Height()
 
 	return m
 }
@@ -80,7 +80,7 @@ func newvalueview() viewport.Model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, viewport.Sync(m.valueview))
+	return tea.Batch(textinput.Blink, viewport.Sync(m.viewport))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -105,12 +105,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
 				renderer := panicOnError(glamour.NewTermRenderer(
 					glamour.WithAutoStyle(),
-					glamour.WithWordWrap(m.valueview.Width),
+					glamour.WithWordWrap(m.viewport.Width),
 				))
 
 				str := panicOnError(renderer.Render(markdown))
 
-				m.valueview.SetContent(str)
+				m.viewport.SetContent(str)
 
 			}
 
@@ -124,7 +124,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h, v := docStyle.GetFrameSize()
 		patternInputHeight := headerStyle.GetVerticalFrameSize()
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
-		m.valueview.Height = m.keylist.Height() - 5 // adjust for pagination and help message
+		m.viewport.Height = m.keylist.Height() - 5 // adjust for pagination and help message
 		// TODO: dynamic viewport resizing: https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/pager/main.go#L71-L75
 	}
 
@@ -150,7 +150,7 @@ func (m model) View() string {
 
 	var valueBlock string
 	if len(m.keylist.VisibleItems()) > 0 {
-		valueBlock = m.valueview.View()
+		valueBlock = m.viewport.View()
 	}
 	resultsBlock := lipgloss.JoinHorizontal(lipgloss.Top,
 		m.keylist.View(),
