@@ -23,6 +23,8 @@ type model struct {
 	valueview    viewport.Model
 }
 
+// TODO: errMsg https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/chat/main.go#L26
+
 func panicOnError[T any](v T, err error) T {
 	if err != nil {
 		panic(err)
@@ -65,6 +67,7 @@ func initialModel() model {
 	}
 
 	m.valueview = newvalueview()
+	// m.valueview.HighPerformanceRendering = true // TODO
 	m.valueview.Height = m.keylist.Height()
 
 	return m
@@ -77,7 +80,7 @@ func newvalueview() viewport.Model {
 }
 
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, viewport.Sync(m.valueview))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -95,9 +98,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
 		case "up", "down", "left", "right":
-			var cmd tea.Cmd
-			m.valueview.SetContent("")
+			var cmd, vpCmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
+
 			if m.keylist.SelectedItem() != nil {
 				markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
 				renderer := panicOnError(glamour.NewTermRenderer(
@@ -106,10 +109,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				))
 
 				str := panicOnError(renderer.Render(markdown))
+
 				m.valueview.SetContent(str)
+
 			}
 
-			return m, tea.Batch(cmd)
+			return m, tea.Batch(cmd, vpCmd)
 		case "ctrl+m":
 			m.data.ScanMore()
 			// m.keylist.SetShowHelp(!m.keylist.ShowHelp())
@@ -120,6 +125,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		patternInputHeight := headerStyle.GetVerticalFrameSize()
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
 		m.valueview.Height = m.keylist.Height() - 5 // adjust for pagination and help message
+		// TODO: dynamic viewport resizing: https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/pager/main.go#L71-L75
 	}
 
 	// Handle character input
@@ -130,7 +136,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 
-	input := headerStyle.Copy().Width(102).Render(m.patternInput.View())
+	input := headerStyle.Copy().Width(105).Render(m.patternInput.View())
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			m.data.opts.Addrs[0],
@@ -178,8 +184,8 @@ func (k Key) Title() string {
 	} else {
 		ttl = humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
 	}
-	return lipgloss.NewStyle().Width(11).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
-		lipgloss.NewStyle().Width(78).Render(k.name) +
+	return lipgloss.NewStyle().Width(10).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
+		lipgloss.NewStyle().Width(80).Render(k.name) +
 		lipgloss.NewStyle().Width(11).Render(ttl) +
 		lipgloss.NewStyle().Width(7).Render(humanize.Bytes(k.size))
 }
@@ -195,7 +201,12 @@ func (k Key) FilterValue() string {
 ////////////////////////////////////////////
 
 func main() {
-	if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
+	p := tea.NewProgram(
+		initialModel(),
+		tea.WithAltScreen(), // use the full size of the terminal in its "alternate screen buffer"
+	)
+
+	if _, err := p.Run(); err != nil {
 		fmt.Printf("could not start program: %s\n", err)
 		os.Exit(1)
 	}
