@@ -3,13 +3,18 @@ package main
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	blurredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cursorStyle  = focusedStyle.Copy()
-	helpStyle    = blurredStyle.Copy()
-	docStyle     = lipgloss.NewStyle().Margin(1, 2)
-	headerStyle  = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("205")).Border(lipgloss.RoundedBorder())
+	focusedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	blurredStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cursorStyle      = focusedStyle.Copy()
+	helpStyle        = blurredStyle.Copy()
+	docStyle         = lipgloss.NewStyle().Margin(1, 2)
+	headerStyle      = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("205")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#0a2b3b"))
+	statusBlockStyle = headerStyle.Copy().Width(80).Align(lipgloss.Right) // same width as valueview
 
+	viewportStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#6e5494")).
+			PaddingRight(2)
 	// noStyle      = lipgloss.NewStyle()
 	// cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	// focusedButton = focusedStyle.Copy().Render("[ Submit ]")

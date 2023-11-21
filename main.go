@@ -70,12 +70,8 @@ func initialModel() model {
 }
 
 func newvalueview() viewport.Model {
-	vp := viewport.New(80, 20)
-	vp.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		PaddingRight(2)
-
+	vp := viewport.New(80, 30)
+	vp.Style = viewportStyle
 	return vp
 }
 
@@ -122,7 +118,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
 	}
 
-	// Handle character input and blinking
+	// Handle character input
 	var cmd tea.Cmd
 	m.patternInput, cmd = m.patternInput.Update(msg)
 	return m, cmd
@@ -131,9 +127,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 
 	input := headerStyle.Copy().Width(79).Render(m.patternInput.View())
-	statusBlock := headerStyle.Copy().Width(80).Render( // same width as valueview
+	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
-			lipgloss.NewStyle().Render(m.data.opts.Addrs[0]),
+			m.data.opts.Addrs[0],
 			fmt.Sprintf("%d keys", m.data.TotalKeys()),
 		),
 	)
