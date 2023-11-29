@@ -108,8 +108,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// m.keylist.SetShowHelp(!m.keylist.ShowHelp())
 		}
 	case tea.WindowSizeMsg:
-		// Note that WindowSizeMsg is sent before the first render and then again every resize.
-
+		// WindowSizeMsg is sent before the first render and then again every resize.
 		headerHeight := lipgloss.Height(m.headerView())
 		verticalMarginHeight := headerHeight
 		horizontalMarginWidth := lipgloss.Width(m.keylist.View())
@@ -126,16 +125,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport = viewport.New(msg.Width-h-horizontalMarginWidth, msg.Height-v-verticalMarginHeight-5)
 			m.viewport.Style = viewportStyle
 			m.viewport.YPosition = headerHeight
-
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = msg.Height - verticalMarginHeight
 		}
-
 	}
 
-	// Handle character input
+	// Handle any other character input as pattern input
 	var cmd tea.Cmd
 	m.patternInput, cmd = m.patternInput.Update(msg)
 	return m, cmd
