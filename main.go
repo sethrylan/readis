@@ -67,7 +67,7 @@ func initialModel() model {
 	}
 
 	m.viewport = newvalueview()
-	// m.valueview.HighPerformanceRendering = true // TODO
+	// m.viewport.HighPerformanceRendering = true // TODO
 	m.viewport.Height = m.keylist.Height()
 
 	return m
@@ -98,7 +98,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
 		case "up", "down", "left", "right":
-			var cmd, vpCmd tea.Cmd
+			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 
 			if m.keylist.SelectedItem() != nil {
@@ -114,13 +114,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			}
 
-			return m, tea.Batch(cmd, vpCmd)
+			return m, tea.Batch(cmd)
 		case "ctrl+m":
 			m.data.ScanMore()
 			// m.keylist.SetShowHelp(!m.keylist.ShowHelp())
 		}
 	case tea.WindowSizeMsg:
 		// Note that WindowSizeMsg is sent before the first render and then again every resize.
+
 		h, v := docStyle.GetFrameSize()
 		patternInputHeight := headerStyle.GetVerticalFrameSize()
 		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
@@ -134,8 +135,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
-
+func (m model) headerView() string {
 	input := headerStyle.Copy().Width(105).Render(m.patternInput.View())
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
@@ -144,25 +144,30 @@ func (m model) View() string {
 		),
 	)
 
-	headerBlock := lipgloss.NewStyle().Render(
+	return lipgloss.NewStyle().Render(
 		lipgloss.JoinHorizontal(lipgloss.Top, input, statusBlock),
 	)
+}
 
-	var valueBlock string
-	if len(m.keylist.VisibleItems()) > 0 {
-		valueBlock = m.viewport.View()
+func (m model) resultsView() string {
+	if len(m.keylist.VisibleItems()) == 0 {
+		return m.keylist.View()
 	}
-	resultsBlock := lipgloss.JoinHorizontal(lipgloss.Top,
+
+	return lipgloss.JoinHorizontal(lipgloss.Top,
 		m.keylist.View(),
-		valueBlock,
+		m.viewport.View(),
 	)
+}
+
+func (m model) View() string {
 
 	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
 
 	return docStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
-			headerBlock,
-			resultsBlock,
+			m.headerView(),
+			m.resultsView(),
 		),
 	)
 
