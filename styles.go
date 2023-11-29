@@ -14,7 +14,8 @@ var (
 	viewportStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#6e5494")).
-			PaddingRight(2)
+			PaddingRight(2).
+			Width(80)
 	// noStyle      = lipgloss.NewStyle()
 	// cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	// focusedButton = focusedStyle.Copy().Render("[ Submit ]")

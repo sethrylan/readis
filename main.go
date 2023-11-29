@@ -21,6 +21,7 @@ type model struct {
 	patternInput textinput.Model
 	keylist      list.Model
 	viewport     viewport.Model
+	ready        bool
 }
 
 // TODO: errMsg https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/chat/main.go#L26
@@ -65,18 +66,7 @@ func initialModel() model {
 			m.keyMap.PagePrev,
 		}
 	}
-
-	m.viewport = newvalueview()
-	// m.viewport.HighPerformanceRendering = true // TODO
-	m.viewport.Height = m.keylist.Height()
-
 	return m
-}
-
-func newvalueview() viewport.Model {
-	vp := viewport.New(80, 30)
-	vp.Style = viewportStyle
-	return vp
 }
 
 func (m model) Init() tea.Cmd {
@@ -111,9 +101,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				str := panicOnError(renderer.Render(markdown))
 
 				m.viewport.SetContent(str)
-
 			}
-
 			return m, tea.Batch(cmd)
 		case "ctrl+m":
 			m.data.ScanMore()
@@ -122,11 +110,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// Note that WindowSizeMsg is sent before the first render and then again every resize.
 
-		h, v := docStyle.GetFrameSize()
-		patternInputHeight := headerStyle.GetVerticalFrameSize()
-		m.keylist.SetSize(msg.Width-h, msg.Height-v-patternInputHeight)
-		m.viewport.Height = m.keylist.Height() - 5 // adjust for pagination and help message
-		// TODO: dynamic viewport resizing: https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/pager/main.go#L71-L75
+		headerHeight := lipgloss.Height(m.headerView())
+		verticalMarginHeight := headerHeight
+		horizontalMarginWidth := lipgloss.Width(m.keylist.View())
+
+		if !m.ready {
+			h, v := docStyle.GetFrameSize() // horizontal and vertical margins
+			m.keylist.SetSize(msg.Width-h, msg.Height-v-lipgloss.Height(m.headerView()))
+
+			// Since this program is using the full size of the viewport we
+			// need to wait until we've received the window dimensions before
+			// we can initialize the viewport. The initial dimensions come in
+			// quickly, though asynchronously, which is why we wait for them
+			// here.
+			m.viewport = viewport.New(msg.Width-h-horizontalMarginWidth, msg.Height-v-verticalMarginHeight-5)
+			m.viewport.Style = viewportStyle
+			m.viewport.YPosition = headerHeight
+
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - verticalMarginHeight
+		}
+
 	}
 
 	// Handle character input
@@ -150,7 +156,7 @@ func (m model) headerView() string {
 }
 
 func (m model) resultsView() string {
-	if len(m.keylist.VisibleItems()) == 0 {
+	if m.keylist.SelectedItem() == nil {
 		return m.keylist.View()
 	}
 
@@ -163,6 +169,9 @@ func (m model) resultsView() string {
 func (m model) View() string {
 
 	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
+	if !m.ready {
+		return "\n  Initializing..."
+	}
 
 	return docStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
