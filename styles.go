@@ -9,13 +9,13 @@ var (
 	helpStyle        = blurredStyle.Copy()
 	docStyle         = lipgloss.NewStyle().Margin(1, 2)
 	headerStyle      = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("#c9510c")).Bold(true).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#0a2b3b"))
-	statusBlockStyle = headerStyle.Copy().Width(80).Align(lipgloss.Right) // same width as valueview
+	inputStyle       = headerStyle.Copy().Width(105)
+	statusBlockStyle = headerStyle.Copy().Align(lipgloss.Right)
 
 	viewportStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#6e5494")).
-			PaddingRight(2).
-			Width(80)
+			PaddingRight(2)
 	// noStyle      = lipgloss.NewStyle()
 	// cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	// focusedButton = focusedStyle.Copy().Render("[ Submit ]")

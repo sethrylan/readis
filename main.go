@@ -70,7 +70,7 @@ func initialModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, viewport.Sync(m.viewport))
+	return tea.Batch(textinput.Blink)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -91,45 +91,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 
-			if m.keylist.SelectedItem() != nil {
-				markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
-				renderer := panicOnError(glamour.NewTermRenderer(
-					glamour.WithAutoStyle(),
-					glamour.WithWordWrap(m.viewport.Width),
-				))
-
-				str := panicOnError(renderer.Render(markdown))
-
-				m.viewport.SetContent(str)
-			}
+			setViewportContent(&m)
 			return m, tea.Batch(cmd)
 		case "ctrl+m":
 			m.data.ScanMore()
-			// m.keylist.SetShowHelp(!m.keylist.ShowHelp())
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
+
+		horizontalMargin, verticalMargin := docStyle.GetFrameSize() // horizontal and vertical margins
+		keylistWidth := msg.Width - horizontalMargin
+		keylistHeight := msg.Height - verticalMargin - lipgloss.Height(m.headerView())
+		m.keylist.SetSize(keylistWidth, keylistHeight)
 		headerHeight := lipgloss.Height(m.headerView())
-		verticalMarginHeight := headerHeight
-		horizontalMarginWidth := lipgloss.Width(m.keylist.View())
 
-		if !m.ready {
-			h, v := docStyle.GetFrameSize() // horizontal and vertical margins
-			m.keylist.SetSize(msg.Width-h, msg.Height-v-lipgloss.Height(m.headerView()))
+		viewportWidth := msg.Width - horizontalMargin - 112 // the sum of Title widths and spacing (or input style width)
+		viewportHeight := keylistHeight - 5                 // adjust for spacing
+		m.viewport = viewport.New(viewportWidth, viewportHeight)
+		m.viewport.Style = viewportStyle.Width(viewportWidth)
+		m.viewport.YPosition = headerHeight
+		setViewportContent(&m)
+		statusBlockStyle = statusBlockStyle.Width(viewportWidth)
 
-			// Since this program is using the full size of the viewport we
-			// need to wait until we've received the window dimensions before
-			// we can initialize the viewport. The initial dimensions come in
-			// quickly, though asynchronously, which is why we wait for them
-			// here.
-			m.viewport = viewport.New(msg.Width-h-horizontalMarginWidth, msg.Height-v-verticalMarginHeight-5)
-			m.viewport.Style = viewportStyle
-			m.viewport.YPosition = headerHeight
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
-		}
+		m.ready = true
 	}
 
 	// Handle any other character input as pattern input
@@ -139,7 +123,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) headerView() string {
-	input := headerStyle.Copy().Width(105).Render(m.patternInput.View())
+	input := inputStyle.Render(m.patternInput.View())
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			m.data.opts.Addrs[0],
@@ -161,6 +145,20 @@ func (m model) resultsView() string {
 		m.keylist.View(),
 		m.viewport.View(),
 	)
+}
+
+func setViewportContent(m *model) {
+	if m.keylist.SelectedItem() != nil {
+		markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
+		renderer := panicOnError(glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(m.viewport.Width),
+		))
+
+		str := panicOnError(renderer.Render(markdown))
+
+		m.viewport.SetContent(str)
+	}
 }
 
 func (m model) View() string {
