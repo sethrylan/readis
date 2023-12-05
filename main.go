@@ -90,7 +90,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "down", "left", "right":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-
 			setViewportContent(&m)
 			return m, tea.Batch(cmd)
 		case "ctrl+m":
