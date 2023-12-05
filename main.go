@@ -212,6 +212,11 @@ func (k Key) FilterValue() string {
 ////////////////////////////////////////////
 
 func main() {
+	if len(os.Getenv("DEBUG")) > 0 {
+		f := panicOnError(tea.LogToFile("debug.log", "debug"))
+		defer f.Close()
+	}
+
 	p := tea.NewProgram(
 		initialModel(),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
