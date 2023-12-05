@@ -24,7 +24,9 @@ type model struct {
 	initialized  bool
 }
 
-// TODO: errMsg https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/chat/main.go#L26
+type (
+	errMsg error
+)
 
 func panicOnError[T any](v T, err error) T {
 	if err != nil {
@@ -113,6 +115,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		statusBlockStyle = statusBlockStyle.Width(viewportWidth)
 
 		m.initialized = true
+	case errMsg:
+		// handle errors like any other message
+		m.viewport.SetContent(msg.Error())
+		return m, nil
 	}
 
 	// Handle any other character input as pattern input
