@@ -21,7 +21,7 @@ type model struct {
 	patternInput textinput.Model
 	keylist      list.Model
 	viewport     viewport.Model
-	ready        bool
+	initialized  bool
 }
 
 // TODO: errMsg https://github.com/charmbracelet/bubbletea/blob/a6f07b8ba6439fa65612a350bc1878d9d8c0447a/examples/chat/main.go#L26
@@ -112,7 +112,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		setViewportContent(&m)
 		statusBlockStyle = statusBlockStyle.Width(viewportWidth)
 
-		m.ready = true
+		m.initialized = true
 	}
 
 	// Handle any other character input as pattern input
@@ -155,15 +155,12 @@ func setViewportContent(m *model) {
 		))
 
 		str := panicOnError(renderer.Render(markdown))
-
 		m.viewport.SetContent(str)
 	}
 }
 
 func (m model) View() string {
-
-	// b.WriteString(helpStyle.Render(fmt.Sprintf("%d Matches", m.data.TotalFound())))
-	if !m.ready {
+	if !m.initialized {
 		return "\n  Initializing..."
 	}
 
@@ -173,7 +170,6 @@ func (m model) View() string {
 			m.resultsView(),
 		),
 	)
-
 }
 
 ////////////////////////////////////
@@ -185,16 +181,17 @@ type Key struct {
 	ttl      time.Duration
 }
 
-func (k Key) Title() string {
-	var ttl string
+func (k Key) TTLString() string {
 	if k.ttl == -1 {
-		ttl = "∞"
-	} else {
-		ttl = humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
+		return "∞"
 	}
+	return humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
+}
+
+func (k Key) Title() string {
 	return lipgloss.NewStyle().Width(10).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
 		lipgloss.NewStyle().Width(80).Render(k.name) +
-		lipgloss.NewStyle().Width(11).Render(ttl) +
+		lipgloss.NewStyle().Width(11).Render(k.TTLString()) +
 		lipgloss.NewStyle().Width(7).Render(humanize.Bytes(k.size))
 }
 
@@ -211,7 +208,7 @@ func (k Key) FilterValue() string {
 func main() {
 	p := tea.NewProgram(
 		initialModel(),
-		tea.WithAltScreen(), // use the full size of the terminal in its "alternate screen buffer"
+		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
 	)
 
 	if _, err := p.Run(); err != nil {
