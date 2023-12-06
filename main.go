@@ -102,12 +102,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
-			// clear items
-			m.keylist.SetItems([]list.Item{})
-			// Initialize scan, estimate number of keys per page
-			m.scan = m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000))
 			var cmds []tea.Cmd
-			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
+
+			m.keylist.SetItems([]list.Item{})                         // clear items
+			pageSize := m.keylist.Paginator.ItemsOnPage(1000)         // estimate the page size
+			m.scan = m.data.NewScan(m.patternInput.Value(), pageSize) // initialize scan
+			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)         // start scan
+
 			for key := range m.scanCh {
 				c := m.keylist.InsertItem(10000000000, *key)
 				cmds = append(cmds, c)
@@ -124,7 +125,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
 			var cmds []tea.Cmd
-			if m.keylist.Paginator.OnLastPage() {
+			if m.keylist.Paginator.OnLastPage() { // TODO: check if more scan results are available
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 				for key := range m.scanCh {
 					c := m.keylist.InsertItem(10000000000, *key)
