@@ -95,29 +95,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setViewportContent()
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
-			if m.keylist.Paginator.OnLastPage() { // TODO: check if more scan results are available
+			// iff on the last page and the current scan is complete,
+			// then we can scan for the next page of results
+			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning {
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
-				for key := range m.scanCh {
-					c := m.keylist.InsertItem(math.MaxInt, *key)
-					cmds = append(cmds, c)
-				}
 			}
-			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.setViewportContent()
 			return m, tea.Batch(append(cmds, cmd)...)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
-
-		horizontalMargin, verticalMargin := docStyle.GetFrameSize() // horizontal and vertical margins
-		keylistWidth := msg.Width - horizontalMargin
-		keylistHeight := msg.Height - verticalMargin - lipgloss.Height(m.headerView())
+		hMargin, vMargin := docStyle.GetFrameSize() // horizontal and vertical margins
+		keylistWidth := msg.Width - hMargin
+		keylistHeight := msg.Height - vMargin - lipgloss.Height(m.headerView())
 		m.keylist.SetSize(keylistWidth, keylistHeight)
-		headerHeight := lipgloss.Height(m.headerView())
 
-		viewportWidth := msg.Width - horizontalMargin - 112 // the sum of Title widths and spacing (or input style width)
-		viewportHeight := keylistHeight - 5                 // adjust for spacing
+		headerHeight := lipgloss.Height(m.headerView())
+		viewportWidth := msg.Width - hMargin - 112     // the sum of Title widths and spacing (or input style width)
+		viewportHeight := keylistHeight - headerHeight // adjust for spacing
 		m.viewport = viewport.New(viewportWidth, viewportHeight)
 		m.viewport.Style = viewportStyle.Width(viewportWidth)
 		m.viewport.YPosition = headerHeight
