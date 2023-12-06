@@ -135,6 +135,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
+			setViewportContent(&m)
 			cmds = append(cmds, cmd)
 			return m, tea.Batch(cmds...)
 		}
