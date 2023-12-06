@@ -40,6 +40,7 @@ func debug(a ...string) {
 		return
 	}
 
+	logfile.WriteString(time.Now().UTC().Format("2006-01-02 15:04:05 "))
 	for _, s := range a {
 		logfile.WriteString(s)
 	}

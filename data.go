@@ -138,7 +138,7 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 		} else {
 			rc := d.rc
 			if s.iters[rc.Options().Addr] == nil {
-				debug("new iterator", rc.Options().Addr)
+				debug("new iterator: ", rc.Options().Addr)
 				s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 			}
 			iter := s.iters[rc.Options().Addr]
@@ -222,7 +222,7 @@ func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
 	} else {
 		rc := d.rc
 		if s.iters[rc.Options().Addr] == nil {
-			debug("new iterator", rc.Options().Addr)
+			debug("new iterator: ", rc.Options().Addr)
 			s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 		}
 		iter := s.iters[rc.Options().Addr]
