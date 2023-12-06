@@ -18,10 +18,10 @@ type listKeyMap struct {
 
 func newListKeyMap() *listKeyMap {
 	return &listKeyMap{
-		ScanMore: key.NewBinding(
-			key.WithKeys("ctrl+t"),
-			key.WithHelp("ctrl+t", "scan more"),
-		),
+		// ScanMore: key.NewBinding(
+		// 	key.WithKeys("ctrl+t"),
+		// 	key.WithHelp("ctrl+t", "scan more"),
+		// ),
 		PageNext: key.NewBinding(
 			key.WithKeys("right"),
 			key.WithHelp("→", "next page"),

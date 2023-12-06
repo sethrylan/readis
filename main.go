@@ -98,22 +98,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
-			items := m.data.NewScan(m.patternInput.Value(), 10)
+			// estimate number of keys per page
+			items := m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000)) //  (lipgloss.Height(m.resultsView())-2)/2)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(cmd)
-		case "up", "down", "left", "right":
+		case "up", "down", "left":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			setViewportContent(&m)
 			return m, tea.Batch(cmd)
-		case "ctrl+t":
-			items := m.data.ScanMore()
-			setcmd := m.keylist.SetItems(items)
+		case "ctrl+t", "right":
+			var setcmd tea.Cmd
+			if m.keylist.Paginator.OnLastPage() {
+				items := m.data.ScanMore()
+				setcmd = m.keylist.SetItems(items)
+			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(setcmd, cmd)
+
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
