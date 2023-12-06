@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -29,10 +30,10 @@ type model struct {
 	scanCtx      context.Context
 }
 
-func NewModel() model {
+func NewModel(data *Data) model {
 	m := model{}
 
-	m.data = NewData()
+	m.data = data
 	m.keyMap = newListKeyMap()
 
 	m.patternInput = textinput.New()
@@ -158,7 +159,7 @@ func (m model) headerView() string {
 	input := inputStyle.Render(m.patternInput.View())
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
-			m.data.opts.Addrs[0],
+			m.data.uri,
 			fmt.Sprintf("%d keys", m.data.TotalKeys(context.Background())),
 		),
 	)
@@ -240,13 +241,23 @@ func (k Key) FilterValue() string {
 ////////////////////////////////////////////
 
 func main() {
-	if len(os.Getenv("DEBUG")) > 0 {
+	debug := flag.Bool("debug", false, "Enable debug logging to the debug.log file")
+	clusterMode := flag.Bool("c", false, "Use cluster mode")
+	flag.Parse()
+
+	if *debug {
 		logfile = panicOnError(tea.LogToFile("debug.log", "debug"))
 		defer logfile.Close()
 	}
 
+	uri := flag.Arg(0)
+	if uri == "" {
+		uri = "redis://localhost:6379"
+	}
+
+	d := NewData(uri, *clusterMode)
 	p := tea.NewProgram(
-		NewModel(),
+		NewModel(d),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
 	)
 

@@ -3,14 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/redis/go-redis/v9"
 )
 
 type Data struct {
-	opts    *redis.UniversalOptions
+	uri     string
 	cluster bool
 
 	rc *redis.Client
@@ -32,41 +31,22 @@ func (d *Data) TotalKeys(ctx context.Context) int64 {
 	return d.rc.DBSize(context.Background()).Val()
 }
 
-func NewData() *Data {
-	d := &Data{}
-	uri, found := os.LookupEnv("REDIS_URI")
-	if !found {
-		d.cluster = false
-		d.opts = &redis.UniversalOptions{
-			Addrs: []string{"localhost:6379"},
-		}
-		d.rc = redis.NewClient(d.opts.Simple())
-	} else {
+func NewData(uri string, cluster bool) *Data {
+	if cluster {
 		options := panicOnError(redis.ParseClusterURL(uri))
-		d.cluster = true
-		d.opts = &redis.UniversalOptions{
-			Addrs:           options.Addrs,
-			Username:        options.Username,
-			Password:        options.Password,
-			TLSConfig:       options.TLSConfig,
-			MaxRetries:      options.MaxRetries,
-			MinRetryBackoff: options.MinRetryBackoff,
-			MaxRetryBackoff: options.MaxRetryBackoff,
-			DialTimeout:     options.DialTimeout,
-			ReadTimeout:     options.ReadTimeout,
-			WriteTimeout:    options.WriteTimeout,
-			PoolSize:        options.PoolSize,
-			MinIdleConns:    options.MinIdleConns,
-			PoolTimeout:     options.PoolTimeout,
-			MaxRedirects:    options.MaxRedirects,
-			ReadOnly:        options.ReadOnly,
-			RouteByLatency:  options.RouteByLatency,
-			RouteRandomly:   options.RouteRandomly,
+		return &Data{
+			uri:     uri,
+			cluster: true,
+			cc:      redis.NewClusterClient(options),
 		}
-		d.cc = redis.NewClusterClient(d.opts.Cluster())
 	}
 
-	return d
+	options := panicOnError(redis.ParseURL(uri))
+	return &Data{
+		uri:     uri,
+		cluster: false,
+		rc:      redis.NewClient(options),
+	}
 }
 
 func (d *Data) Close() {
