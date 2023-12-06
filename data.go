@@ -20,7 +20,7 @@ type Data struct {
 	pattern  string
 	iters    map[string]*redis.ScanIterator
 
-	keys map[string]*Key
+	keys []*Key
 }
 
 func (d *Data) TotalKeys() int64 {
@@ -35,7 +35,6 @@ func (d *Data) ResetScan() {
 	d.pageSize = 0
 	d.pattern = ""
 	d.iters = make(map[string]*redis.ScanIterator)
-	d.keys = make(map[string]*Key)
 }
 
 func NewData() *Data {
@@ -89,6 +88,7 @@ func (d *Data) NewScan(pattern string, pageSize int) []list.Item {
 	d.pattern = pattern
 	d.pageSize = pageSize
 	d.iters = make(map[string]*redis.ScanIterator)
+	d.keys = make([]*Key, 0)
 
 	return d.ScanMore()
 }
@@ -172,13 +172,13 @@ func (d *Data) scan(ctx context.Context) map[string]*Key {
 
 func (d *Data) ScanMore() []list.Item {
 	ctx := context.Background()
-	for k, v := range d.scan(ctx) {
-		d.keys[k] = v
+	for _, v := range d.scan(ctx) {
+		d.keys = append(d.keys, v)
 	}
 
 	var items []list.Item
-	for _, key := range d.keys {
-		items = append(items, *key)
+	for _, v := range d.keys {
+		items = append(items, *v)
 	}
 
 	return items

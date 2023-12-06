@@ -19,8 +19,8 @@ type listKeyMap struct {
 func newListKeyMap() *listKeyMap {
 	return &listKeyMap{
 		ScanMore: key.NewBinding(
-			key.WithKeys("ctrl+m"),
-			key.WithHelp("ctrl+m", "scan more"),
+			key.WithKeys("ctrl+t"),
+			key.WithHelp("ctrl+t", "scan more"),
 		),
 		PageNext: key.NewBinding(
 			key.WithKeys("right"),
