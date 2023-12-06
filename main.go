@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"time"
 
@@ -110,7 +111,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)         // start scan
 
 			for key := range m.scanCh {
-				c := m.keylist.InsertItem(10000000000, *key)
+				c := m.keylist.InsertItem(math.MaxInt, *key)
 				cmds = append(cmds, c)
 			}
 
@@ -128,7 +129,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.keylist.Paginator.OnLastPage() { // TODO: check if more scan results are available
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 				for key := range m.scanCh {
-					c := m.keylist.InsertItem(10000000000, *key)
+					c := m.keylist.InsertItem(math.MaxInt, *key)
 					cmds = append(cmds, c)
 				}
 			}
