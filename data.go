@@ -287,13 +287,7 @@ func (d *Data) Fetch(key Key) string {
 		}
 		return markdown
 	default:
-		return `
-| Name        | Price | Notes                           |
-| ---         | ---   | ---                             |
-| Tsukemono   | $2    | Just an appetizer               |
-| Tomato Soup | $4    | Made with San Marzano tomatoes  |
-| Okonomiyaki | $4    | Takes a few minutes to make     |
-| Curry       | $3    | We can add squash if you’d like |`
+		return "Unknown data type: " + key.datatype
 
 	}
 

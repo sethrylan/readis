@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,6 +29,7 @@ type model struct {
 	scan         *Scan
 	scanCh       <-chan *Key // receive-only channel for scan results
 	scanCtx      context.Context
+	spinner      spinner.Model
 }
 
 func NewModel(data *Data) model {
@@ -36,9 +38,14 @@ func NewModel(data *Data) model {
 	m.data = data
 	m.keyMap = newListKeyMap()
 
+	m.spinner = spinner.New(
+		spinner.WithSpinner(spinner.Dot),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))),
+	)
+
 	m.patternInput = textinput.New()
 	m.patternInput.Cursor.Style = cursorStyle
-	m.patternInput.CharLimit = 77
+	m.patternInput.CharLimit = 74
 	m.patternInput.Placeholder = "Pattern"
 	m.patternInput.Focus()
 	m.patternInput.PromptStyle = focusedStyle
@@ -67,7 +74,7 @@ func NewModel(data *Data) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink)
+	return tea.Batch(textinput.Blink, m.spinner.Tick)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -148,11 +155,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle any other character input as pattern input
 	m.patternInput, cmd = m.patternInput.Update(msg)
-	return m, tea.Batch(append(cmds, cmd)...)
+	cmds = append(cmds, cmd)
+	// Tick the spinner
+	m.spinner, cmd = m.spinner.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m model) spinnerView() string {
+	if m.scan == nil || !m.scan.scanning {
+		return " "
+	}
+	return "\n" + m.spinner.View()
 }
 
 func (m model) headerView() string {
 	input := inputStyle.Render(m.patternInput.View())
+	spinner := m.spinnerView()
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			m.data.uri,
@@ -161,7 +181,7 @@ func (m model) headerView() string {
 	)
 
 	return lipgloss.NewStyle().Render(
-		lipgloss.JoinHorizontal(lipgloss.Top, input, statusBlock),
+		lipgloss.JoinHorizontal(lipgloss.Top, input, spinner, statusBlock),
 	)
 }
 
