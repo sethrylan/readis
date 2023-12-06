@@ -29,33 +29,7 @@ type model struct {
 	scanCtx      context.Context
 }
 
-var logfile *os.File
-
-type (
-	errMsg error
-)
-
-func debug(a ...string) {
-	if logfile == nil {
-		return
-	}
-
-	logfile.WriteString(time.Now().UTC().Format("2006-01-02 15:04:05 "))
-	for _, s := range a {
-		logfile.WriteString(s)
-	}
-
-	logfile.WriteString("\n")
-}
-
-func panicOnError[T any](v T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-func initialModel() model {
+func NewModel() model {
 	m := model{}
 
 	m.data = NewData()
@@ -96,6 +70,9 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		debug("key pressed: ", msg.String())
@@ -104,29 +81,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
-			var cmds []tea.Cmd
-
 			m.keylist.SetItems([]list.Item{})                         // clear items
 			pageSize := m.keylist.Paginator.ItemsOnPage(1000)         // estimate the page size
 			m.scan = m.data.NewScan(m.patternInput.Value(), pageSize) // initialize scan
 			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)         // start scan
 
-			for key := range m.scanCh {
-				c := m.keylist.InsertItem(math.MaxInt, *key)
-				cmds = append(cmds, c)
-			}
-
-			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
+			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			setViewportContent(&m)
+			m.setViewportContent()
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
-			var cmds []tea.Cmd
 			if m.keylist.Paginator.OnLastPage() { // TODO: check if more scan results are available
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 				for key := range m.scanCh {
@@ -136,9 +103,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			setViewportContent(&m)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
+			m.setViewportContent()
+			return m, tea.Batch(append(cmds, cmd)...)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
@@ -154,7 +120,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport = viewport.New(viewportWidth, viewportHeight)
 		m.viewport.Style = viewportStyle.Width(viewportWidth)
 		m.viewport.YPosition = headerHeight
-		setViewportContent(&m)
+		m.setViewportContent()
 		statusBlockStyle = statusBlockStyle.Width(viewportWidth)
 
 		m.initialized = true
@@ -164,10 +130,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	hasMore := true
+
+	for hasMore {
+		select {
+		case item, ok := <-m.scanCh:
+			if !ok {
+				debug("scan channel closed")
+				hasMore = false
+			} else {
+				debug("received item: ", item.name)
+				c := m.keylist.InsertItem(math.MaxInt, *item)
+				cmds = append(cmds, c)
+			}
+		default:
+			debug("no item received")
+			hasMore = false
+		}
+	}
+
 	// Handle any other character input as pattern input
-	var cmd tea.Cmd
 	m.patternInput, cmd = m.patternInput.Update(msg)
-	return m, cmd
+	return m, tea.Batch(append(cmds, cmd)...)
 }
 
 func (m model) headerView() string {
@@ -195,7 +179,7 @@ func (m model) resultsView() string {
 	)
 }
 
-func setViewportContent(m *model) {
+func (m *model) setViewportContent() {
 	if m.keylist.SelectedItem() != nil {
 		markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
 		renderer := panicOnError(glamour.NewTermRenderer(
@@ -221,8 +205,9 @@ func (m model) View() string {
 	)
 }
 
-////////////////////////////////////
+///////////////////////////////////
 
+// Key represents a Redis key, and implements [list.Item]
 type Key struct {
 	name     string
 	datatype string // Hash, String, Set, etc; https://redis.io/commands/type/
@@ -261,7 +246,7 @@ func main() {
 	}
 
 	p := tea.NewProgram(
-		initialModel(),
+		NewModel(),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
 	)
 
