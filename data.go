@@ -96,7 +96,11 @@ func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 	return &s
 }
 
-func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
+func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelFunc) {
+	debug("scan: ", s.pattern, " ", fmt.Sprintf("%d", s.pageSize))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan *Key)
 	go func() {
 		s.scanning = true
 		defer func() {
@@ -138,7 +142,6 @@ func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
 				s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 			}
 			iter := s.iters[rc.Options().Addr]
-			logfile.WriteString("old iterator" + rc.Options().Addr + "\n")
 
 			cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				for iter.Next(ctx) && numFound < s.pageSize {
@@ -184,12 +187,16 @@ func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
 			ch <- key
 		}
 	}()
+
+	return ch, ctx, cancel
 }
 
 func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
 	var cmds []redis.Cmder
 	var err error
 	var numFound int
+
+	debug("scan", s.pattern, fmt.Sprintf("%d", s.pageSize))
 
 	if d.cluster {
 		err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
@@ -219,7 +226,6 @@ func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
 			s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 		}
 		iter := s.iters[rc.Options().Addr]
-		logfile.WriteString("old iterator" + rc.Options().Addr + "\n")
 
 		cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 			for iter.Next(ctx) && numFound < s.pageSize {

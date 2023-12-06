@@ -24,7 +24,7 @@ type model struct {
 	viewport     viewport.Model
 	initialized  bool
 	scan         *Scan
-	scanCh       chan *Key
+	scanCh       <-chan *Key // receive-only channel for scan results
 	scanCtx      context.Context
 }
 
@@ -102,12 +102,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
+			// clear items
+			m.keylist.SetItems([]list.Item{})
 			// Initialize scan, estimate number of keys per page
 			m.scan = m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000))
-			m.scanCh = make(chan *Key)
-			m.scanCtx = context.Background()
 			var cmds []tea.Cmd
-			m.data.asyncScan(m.scanCtx, m.scan, m.scanCh)
+			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 			for key := range m.scanCh {
 				c := m.keylist.InsertItem(10000000000, *key)
 				cmds = append(cmds, c)
@@ -125,10 +125,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t", "right":
 			var cmds []tea.Cmd
 			if m.keylist.Paginator.OnLastPage() {
-				m.scanCh = make(chan *Key)
-				m.scanCtx = context.Background()
-
-				m.data.asyncScan(m.scanCtx, m.scan, m.scanCh)
+				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 				for key := range m.scanCh {
 					c := m.keylist.InsertItem(10000000000, *key)
 					cmds = append(cmds, c)
