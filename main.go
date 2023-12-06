@@ -102,11 +102,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			// Initialize scan, estimate number of keys per page
 			m.scan = m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000))
-			items := m.data.ScanMore(context.Background(), m.scan)
-			m.keylist.SetItems(items)
+			ch := make(chan *Key)
+			var cmds []tea.Cmd
+			m.data.asyncScan(context.Background(), m.scan, ch)
+			for key := range ch {
+				c := m.keylist.InsertItem(10000000000, *key)
+				cmds = append(cmds, c)
+			}
+
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			return m, tea.Batch(cmd)
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
 		case "up", "down", "left":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
@@ -115,11 +122,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t", "right":
 			var cmds []tea.Cmd
 			if m.keylist.Paginator.OnLastPage() {
-				items := m.data.ScanMore(context.Background(), m.scan)
-				for _, item := range items {
-					c := m.keylist.InsertItem(10000000000, item)
+				ch := make(chan *Key)
+				m.data.asyncScan(context.Background(), m.scan, ch)
+				for key := range ch {
+					c := m.keylist.InsertItem(10000000000, *key)
 					cmds = append(cmds, c)
 				}
+
 			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)

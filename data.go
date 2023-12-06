@@ -21,6 +21,7 @@ type Scan struct {
 	pageSize int
 	pattern  string
 	iters    map[string]*redis.ScanIterator
+	c        chan *Key
 	// keys     []*Key
 }
 
@@ -95,9 +96,91 @@ func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 	return &s
 }
 
-// ch <- v    // Send v to channel ch.
-// v := <-ch  // Receive from ch, and
-//            // assign value to v.
+func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
+	go func() {
+		var cmds []redis.Cmder
+		var err error
+		var numFound int
+
+		// ... (same as in the scan function)
+
+		if d.cluster {
+			err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
+				if s.iters[rc.Options().Addr] == nil {
+					s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
+				}
+				iter := s.iters[rc.Options().Addr]
+				shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+					for iter.Next(ctx) && numFound < s.pageSize {
+						numFound++
+						pipe.TTL(ctx, iter.Val())
+						pipe.Type(ctx, iter.Val())
+						pipe.MemoryUsage(ctx, iter.Val())
+					}
+					return nil
+				})
+				if err != nil {
+					panic(err)
+				}
+				cmds = append(cmds, shardCmds...)
+				return iter.Err()
+			})
+		} else {
+			rc := d.rc
+			if s.iters[rc.Options().Addr] == nil {
+				debug("new iterator", rc.Options().Addr)
+				s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
+			}
+			iter := s.iters[rc.Options().Addr]
+			logfile.WriteString("old iterator" + rc.Options().Addr + "\n")
+
+			cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+				for iter.Next(ctx) && numFound < s.pageSize {
+					numFound++
+					pipe.TTL(ctx, iter.Val())
+					pipe.Type(ctx, iter.Val())
+					pipe.MemoryUsage(ctx, iter.Val())
+				}
+				return nil
+			})
+		}
+
+		if err != nil {
+			panic(err)
+		}
+
+		keys := make(map[string]*Key)
+
+		for _, cmd := range cmds {
+			key := cmd.Args()[1].(string)
+			if key == "usage" {
+				key = cmd.Args()[2].(string)
+			}
+
+			if _, ok := keys[key]; !ok {
+				keys[key] = &Key{name: key}
+			}
+
+			switch c := cmd.(type) {
+			case *redis.DurationCmd:
+				keys[key].ttl = c.Val()
+			case *redis.StatusCmd:
+				keys[key].datatype = c.Val()
+			case *redis.IntCmd:
+				keys[key].size = uint64(c.Val())
+			default:
+				panic("unknown type")
+			}
+		}
+
+		for _, key := range keys {
+			// Send the key to the channel instead of adding it to the map
+			ch <- key
+		}
+		// Close the channel to signal that we're done
+		close(ch)
+	}()
+}
 
 func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
 	var cmds []redis.Cmder
