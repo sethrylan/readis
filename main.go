@@ -32,7 +32,7 @@ type (
 	errMsg error
 )
 
-func log(a ...string) {
+func debug(a ...string) {
 	if logfile == nil {
 		return
 	}
@@ -94,7 +94,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		log("key pressed: ", msg.String())
+		debug("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
 			m.data.Close()

@@ -84,7 +84,7 @@ func (d *Data) Close() {
 }
 
 func (d *Data) NewScan(pattern string, pageSize int) *Scan {
-	log("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
+	debug("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
 	// d.ResetScan()
 	s := Scan{}
 	s.pattern = pattern
@@ -128,7 +128,7 @@ func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
 	} else {
 		rc := d.rc
 		if s.iters[rc.Options().Addr] == nil {
-			log("new iterator", rc.Options().Addr)
+			debug("new iterator", rc.Options().Addr)
 			s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 		}
 		iter := s.iters[rc.Options().Addr]
