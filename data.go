@@ -15,12 +15,13 @@ type Data struct {
 
 	rc *redis.Client
 	cc *redis.ClusterClient
+}
 
+type Scan struct {
 	pageSize int
 	pattern  string
 	iters    map[string]*redis.ScanIterator
-
-	keys []*Key
+	// keys     []*Key
 }
 
 func (d *Data) TotalKeys() int64 {
@@ -31,11 +32,11 @@ func (d *Data) TotalKeys() int64 {
 	return d.rc.DBSize(context.Background()).Val()
 }
 
-func (d *Data) ResetScan() {
-	d.pageSize = 0
-	d.pattern = ""
-	d.iters = make(map[string]*redis.ScanIterator)
-}
+// func (d *Data) ResetScan() {
+// 	d.pageSize = 0
+// 	d.pattern = ""
+// 	d.iters = make(map[string]*redis.ScanIterator)
+// }
 
 func NewData() *Data {
 	d := &Data{}
@@ -82,30 +83,35 @@ func (d *Data) Close() {
 	}
 }
 
-func (d *Data) NewScan(pattern string, pageSize int) []list.Item {
+func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 	log("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
-	d.ResetScan()
-	d.pattern = pattern
-	d.pageSize = pageSize
-	d.iters = make(map[string]*redis.ScanIterator)
-	d.keys = make([]*Key, 0)
+	// d.ResetScan()
+	s := Scan{}
+	s.pattern = pattern
+	s.pageSize = pageSize
+	s.iters = make(map[string]*redis.ScanIterator)
+	// s.keys = make([]*Key, 0)
 
-	return d.ScanMore()
+	return &s
 }
 
-func (d *Data) scan(ctx context.Context) map[string]*Key {
+// ch <- v    // Send v to channel ch.
+// v := <-ch  // Receive from ch, and
+//            // assign value to v.
+
+func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
 	var cmds []redis.Cmder
 	var err error
 	var numFound int
 
 	if d.cluster {
 		err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-			if d.iters[rc.Options().Addr] == nil {
-				d.iters[rc.Options().Addr] = rc.Scan(ctx, 0, d.pattern, int64(d.pageSize)).Iterator()
+			if s.iters[rc.Options().Addr] == nil {
+				s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 			}
-			iter := d.iters[rc.Options().Addr]
+			iter := s.iters[rc.Options().Addr]
 			shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-				for iter.Next(ctx) && numFound < d.pageSize {
+				for iter.Next(ctx) && numFound < s.pageSize {
 					numFound++
 					pipe.TTL(ctx, iter.Val())
 					pipe.Type(ctx, iter.Val())
@@ -121,15 +127,15 @@ func (d *Data) scan(ctx context.Context) map[string]*Key {
 		})
 	} else {
 		rc := d.rc
-		if d.iters[rc.Options().Addr] == nil {
+		if s.iters[rc.Options().Addr] == nil {
 			log("new iterator", rc.Options().Addr)
-			d.iters[rc.Options().Addr] = rc.Scan(ctx, 0, d.pattern, int64(d.pageSize)).Iterator()
+			s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 		}
-		iter := d.iters[rc.Options().Addr]
+		iter := s.iters[rc.Options().Addr]
 		logfile.WriteString("old iterator" + rc.Options().Addr + "\n")
 
 		cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-			for iter.Next(ctx) && numFound < d.pageSize {
+			for iter.Next(ctx) && numFound < s.pageSize {
 				numFound++
 				pipe.TTL(ctx, iter.Val())
 				pipe.Type(ctx, iter.Val())
@@ -170,17 +176,11 @@ func (d *Data) scan(ctx context.Context) map[string]*Key {
 	return keys
 }
 
-func (d *Data) ScanMore() []list.Item {
-	ctx := context.Background()
-	for _, v := range d.scan(ctx) {
-		d.keys = append(d.keys, v)
-	}
-
+func (d *Data) ScanMore(ctx context.Context, s *Scan) []list.Item {
 	var items []list.Item
-	for _, v := range d.keys {
+	for _, v := range d.scan(ctx, s) {
 		items = append(items, *v)
 	}
-
 	return items
 }
 

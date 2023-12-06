@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -22,6 +23,7 @@ type model struct {
 	keylist      list.Model
 	viewport     viewport.Model
 	initialized  bool
+	scan         *Scan
 }
 
 var logfile *os.File
@@ -98,8 +100,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
-			// estimate number of keys per page
-			items := m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000)) //  (lipgloss.Height(m.resultsView())-2)/2)
+			// Initialize scan, estimate number of keys per page
+			m.scan = m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000))
+			items := m.data.ScanMore(context.Background(), m.scan)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
@@ -110,14 +113,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			setViewportContent(&m)
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
-			var setcmd tea.Cmd
+			var cmds []tea.Cmd
 			if m.keylist.Paginator.OnLastPage() {
-				items := m.data.ScanMore()
-				setcmd = m.keylist.SetItems(items)
+				items := m.data.ScanMore(context.Background(), m.scan)
+				for _, item := range items {
+					c := m.keylist.InsertItem(10000000000, item)
+					cmds = append(cmds, c)
+				}
 			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			return m, tea.Batch(setcmd, cmd)
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
 
 		}
 	case tea.WindowSizeMsg:
