@@ -7,6 +7,7 @@ Readis is a TUI Redis browser, built with [Charm](https://charm.sh/) libraries, 
 
 ```bash
 go install github.com/sethrylan/readis@latest
+readis
 ```
 
 # Notes

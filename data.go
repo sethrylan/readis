@@ -22,7 +22,6 @@ type Scan struct {
 	pattern  string
 	iters    map[string]*redis.ScanIterator
 	scanning bool
-	// keys     []*Key
 }
 
 func (d *Data) TotalKeys(ctx context.Context) int64 {
@@ -32,12 +31,6 @@ func (d *Data) TotalKeys(ctx context.Context) int64 {
 
 	return d.rc.DBSize(context.Background()).Val()
 }
-
-// func (d *Data) ResetScan() {
-// 	d.pageSize = 0
-// 	d.pattern = ""
-// 	d.iters = make(map[string]*redis.ScanIterator)
-// }
 
 func NewData() *Data {
 	d := &Data{}
@@ -86,14 +79,11 @@ func (d *Data) Close() {
 
 func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 	debug("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
-	// d.ResetScan()
-	s := Scan{}
-	s.pattern = pattern
-	s.pageSize = pageSize
-	s.iters = make(map[string]*redis.ScanIterator)
-	// s.keys = make([]*Key, 0)
-
-	return &s
+	return &Scan{
+		pageSize: pageSize,
+		pattern:  pattern,
+		iters:    make(map[string]*redis.ScanIterator),
+	}
 }
 
 func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelFunc) {
