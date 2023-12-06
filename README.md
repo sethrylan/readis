@@ -1,6 +1,6 @@
 # readis
 
-Readis is a TUI [Redis](https://redis.io/) browser, built with ❤️ and [Charm](https://charm.sh/), inspired by [Redis Insight](https://redislabs.com/redis-enterprise/redis-insight/) [and](https://github.com/snmaynard/redis-audit) [other](https://github.com/antirez/redis-sampler) [tools](https://github.com/gamenet/redis-memory-analyzer).
+Readis is a TUI [Redis](https://redis.io/) browser, built with ❤️ and [Charm](https://charm.sh/), inspired by [RedisInsight](https://redislabs.com/redis-enterprise/redis-insight/) [and](https://github.com/snmaynard/redis-audit) [other](https://github.com/antirez/redis-sampler) [tools](https://github.com/gamenet/redis-memory-analyzer).
 
 
 ## Installing
@@ -12,9 +12,12 @@ go install github.com/github/readis@latest
 ## Using
 
 ```sh
-readis --help
+# print help and options
+➜ readis --help
 
-readis // defaults to localhost:6379
+# try a local redis instance, by default
+➜ readis
 
-readis -c rediss://mycluster.example.com:10000
+# try a cluster URI
+➜ readis -c rediss://mycluster.example.com:10000
 ```
