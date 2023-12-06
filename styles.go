@@ -9,7 +9,7 @@ var (
 	helpStyle        = blurredStyle.Copy()
 	docStyle         = lipgloss.NewStyle().Margin(1, 2)
 	headerStyle      = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("#c9510c")).Bold(true).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#0a2b3b"))
-	inputStyle       = headerStyle.Copy().Width(105)
+	inputStyle       = headerStyle.Copy().Width(104)
 	statusBlockStyle = headerStyle.Copy().Align(lipgloss.Right)
 
 	viewportStyle = lipgloss.NewStyle().

@@ -45,7 +45,7 @@ func NewModel(data *Data) model {
 
 	m.patternInput = textinput.New()
 	m.patternInput.Cursor.Style = cursorStyle
-	m.patternInput.CharLimit = 74
+	m.patternInput.CharLimit = 75
 	m.patternInput.Placeholder = "Pattern"
 	m.patternInput.Focus()
 	m.patternInput.PromptStyle = focusedStyle
@@ -165,9 +165,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) spinnerView() string {
 	if m.scan == nil || !m.scan.scanning {
-		return " "
+		return "\n\n "
 	}
-	return "\n" + m.spinner.View()
+	return "\n\n" + m.spinner.View()
 }
 
 func (m model) headerView() string {
