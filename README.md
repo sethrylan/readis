@@ -14,12 +14,3 @@ readis // defaults to localhost:6379
 
 readis -c rediss://mycluster.example.com:10000
 ```
-
-# Notes
-
-docker run --name redis -p 6379:6379 redis --enable-debug-command yes
-
-DEBUG POPULATE 1000 test 40
-
-HSET myhash field1 "Hello"
-HSET myhash field2 "Hi" field3 "World"
