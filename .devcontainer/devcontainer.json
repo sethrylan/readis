@@ -1,0 +1,25 @@
+{
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go"
+      ]
+    },
+    "codespaces": {
+      "repositories": {
+        "github/*": {
+          "permissions": {
+            "contents": "read",
+            "packages": "read"
+          }
+        }
+      }
+    }
+  },
+  "containerEnv": {
+    "GOPROXY": "https://goproxy.githubapp.com/mod,https://proxy.golang.org,direct",
+    "GOPRIVATE": "",
+    "GONOPROXY": "",
+    "GONOSUMDB": "github.com/github/*"
+  }
+}

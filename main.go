@@ -263,7 +263,6 @@ func main() {
 
 	if *debug {
 		logfile = panicOnError(tea.LogToFile("debug.log", "debug"))
-		defer logfile.Close()
 	}
 
 	uri := flag.Arg(0)
@@ -279,6 +278,9 @@ func main() {
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("could not start program: %s\n", err)
+		logfile.Close()
 		os.Exit(1)
 	}
+
+	defer logfile.Close()
 }

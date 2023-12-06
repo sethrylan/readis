@@ -1,4 +1,4 @@
-module github.com/sethrylan/readis
+module github.com/github/readis
 
 go 1.21
 
