@@ -35,7 +35,7 @@ func NewData(uri string, cluster bool) *Data {
 	if cluster {
 		options := panicOnError(redis.ParseClusterURL(uri))
 		return &Data{
-			uri:     uri,
+			uri:     options.Addrs[0],
 			cluster: true,
 			cc:      redis.NewClusterClient(options),
 		}
@@ -43,7 +43,7 @@ func NewData(uri string, cluster bool) *Data {
 
 	options := panicOnError(redis.ParseURL(uri))
 	return &Data{
-		uri:     uri,
+		uri:     options.Addr,
 		cluster: false,
 		rc:      redis.NewClient(options),
 	}
