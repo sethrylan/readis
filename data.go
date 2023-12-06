@@ -21,7 +21,7 @@ type Scan struct {
 	pageSize int
 	pattern  string
 	iters    map[string]*redis.ScanIterator
-	c        chan *Key
+	scanning bool
 	// keys     []*Key
 }
 
@@ -98,6 +98,12 @@ func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 
 func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
 	go func() {
+		s.scanning = true
+		defer func() {
+			// Close the channel to signal that we're done
+			close(ch)
+			s.scanning = false
+		}()
 		var cmds []redis.Cmder
 		var err error
 		var numFound int
@@ -177,8 +183,6 @@ func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
 			// Send the key to the channel instead of adding it to the map
 			ch <- key
 		}
-		// Close the channel to signal that we're done
-		close(ch)
 	}()
 }
 

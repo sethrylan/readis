@@ -128,7 +128,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					c := m.keylist.InsertItem(10000000000, *key)
 					cmds = append(cmds, c)
 				}
-
 			}
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
