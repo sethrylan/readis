@@ -25,7 +25,7 @@ type Scan struct {
 	// keys     []*Key
 }
 
-func (d *Data) TotalKeys() int64 {
+func (d *Data) TotalKeys(ctx context.Context) int64 {
 	if d.cluster {
 		return d.cc.DBSize(context.Background()).Val()
 	}
@@ -180,7 +180,7 @@ func (d *Data) asyncScan(ctx context.Context, s *Scan, ch chan<- *Key) {
 		}
 
 		for _, key := range keys {
-			// Send the key to the channel instead of adding it to the map
+			// Send the key to the channel
 			ch <- key
 		}
 	}()

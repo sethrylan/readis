@@ -24,6 +24,8 @@ type model struct {
 	viewport     viewport.Model
 	initialized  bool
 	scan         *Scan
+	scanCh       chan *Key
+	scanCtx      context.Context
 }
 
 var logfile *os.File
@@ -102,10 +104,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			// Initialize scan, estimate number of keys per page
 			m.scan = m.data.NewScan(m.patternInput.Value(), m.keylist.Paginator.ItemsOnPage(1000))
-			ch := make(chan *Key)
+			m.scanCh = make(chan *Key)
+			m.scanCtx = context.Background()
 			var cmds []tea.Cmd
-			m.data.asyncScan(context.Background(), m.scan, ch)
-			for key := range ch {
+			m.data.asyncScan(m.scanCtx, m.scan, m.scanCh)
+			for key := range m.scanCh {
 				c := m.keylist.InsertItem(10000000000, *key)
 				cmds = append(cmds, c)
 			}
@@ -122,9 +125,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t", "right":
 			var cmds []tea.Cmd
 			if m.keylist.Paginator.OnLastPage() {
-				ch := make(chan *Key)
-				m.data.asyncScan(context.Background(), m.scan, ch)
-				for key := range ch {
+				m.scanCh = make(chan *Key)
+				m.scanCtx = context.Background()
+
+				m.data.asyncScan(m.scanCtx, m.scan, m.scanCh)
+				for key := range m.scanCh {
 					c := m.keylist.InsertItem(10000000000, *key)
 					cmds = append(cmds, c)
 				}
@@ -133,7 +138,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist, cmd = m.keylist.Update(msg)
 			cmds = append(cmds, cmd)
 			return m, tea.Batch(cmds...)
-
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
@@ -170,7 +174,7 @@ func (m model) headerView() string {
 	statusBlock := statusBlockStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Right,
 			m.data.opts.Addrs[0],
-			fmt.Sprintf("%d keys", m.data.TotalKeys()),
+			fmt.Sprintf("%d keys", m.data.TotalKeys(context.Background())),
 		),
 	)
 
