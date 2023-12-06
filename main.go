@@ -24,9 +24,23 @@ type model struct {
 	initialized  bool
 }
 
+var logfile *os.File
+
 type (
 	errMsg error
 )
+
+func log(a ...string) {
+	if logfile == nil {
+		return
+	}
+
+	for _, s := range a {
+		logfile.WriteString(s)
+	}
+
+	logfile.WriteString("\n")
+}
 
 func panicOnError[T any](v T, err error) T {
 	if err != nil {
@@ -78,12 +92,12 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		log("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
-			m.data.ResetScan()
 			items := m.data.NewScan(m.patternInput.Value(), 10)
 			m.keylist.SetItems(items)
 			var cmd tea.Cmd
@@ -94,8 +108,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist, cmd = m.keylist.Update(msg)
 			setViewportContent(&m)
 			return m, tea.Batch(cmd)
-		case "ctrl+m":
-			m.data.ScanMore()
+		case "ctrl+t":
+			items := m.data.ScanMore()
+			setcmd := m.keylist.SetItems(items)
+			var cmd tea.Cmd
+			m.keylist, cmd = m.keylist.Update(msg)
+			return m, tea.Batch(setcmd, cmd)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
@@ -213,8 +231,8 @@ func (k Key) FilterValue() string {
 
 func main() {
 	if len(os.Getenv("DEBUG")) > 0 {
-		f := panicOnError(tea.LogToFile("debug.log", "debug"))
-		defer f.Close()
+		logfile = panicOnError(tea.LogToFile("debug.log", "debug"))
+		defer logfile.Close()
 	}
 
 	p := tea.NewProgram(

@@ -16,20 +16,11 @@ type Data struct {
 	rc *redis.Client
 	cc *redis.ClusterClient
 
-	total   int64
-	count   int64
-	pattern string
-	cursors map[string]uint64
-	scanned map[string]uint64
-}
+	pageSize int
+	pattern  string
+	iters    map[string]*redis.ScanIterator
 
-// TotalScanned returns an approximate total number of keys scanned so far.
-func (d *Data) TotalFound() int64 {
-	var n int64
-	for _, c := range d.scanned {
-		n += int64(c)
-	}
-	return n
+	keys map[string]*Key
 }
 
 func (d *Data) TotalKeys() int64 {
@@ -41,11 +32,10 @@ func (d *Data) TotalKeys() int64 {
 }
 
 func (d *Data) ResetScan() {
-	d.total = 0
-	d.count = 0
+	d.pageSize = 0
 	d.pattern = ""
-	d.cursors = make(map[string]uint64)
-	d.scanned = make(map[string]uint64)
+	d.iters = make(map[string]*redis.ScanIterator)
+	d.keys = make(map[string]*Key)
 }
 
 func NewData() *Data {
@@ -93,39 +83,30 @@ func (d *Data) Close() {
 	}
 }
 
-// Scan returns the number of keys scanned, the total keys, and the keys found
-func (d *Data) NewScan(pattern string, count int64) []list.Item {
-	var ctx = context.Background()
-
+func (d *Data) NewScan(pattern string, pageSize int) []list.Item {
+	log("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
 	d.ResetScan()
 	d.pattern = pattern
-	d.count = count
+	d.pageSize = pageSize
+	d.iters = make(map[string]*redis.ScanIterator)
 
-	keys := d.scan(ctx)
-
-	var items []list.Item
-	for _, key := range keys {
-		items = append(items, *key)
-	}
-
-	return items
+	return d.ScanMore()
 }
 
 func (d *Data) scan(ctx context.Context) map[string]*Key {
 	var cmds []redis.Cmder
 	var err error
+	var numFound int
 
 	if d.cluster {
 		err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-			currCursor := d.cursors[rc.Options().Addr]
-			scan := rc.Scan(ctx, currCursor, d.pattern, d.count)
-			_, nextCursor := scan.Val()
-			d.cursors[rc.Options().Addr] = nextCursor
-			iter := scan.Iterator()
-
+			if d.iters[rc.Options().Addr] == nil {
+				d.iters[rc.Options().Addr] = rc.Scan(ctx, 0, d.pattern, int64(d.pageSize)).Iterator()
+			}
+			iter := d.iters[rc.Options().Addr]
 			shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-				for iter.Next(ctx) {
-					d.scanned[rc.Options().Addr]++
+				for iter.Next(ctx) && numFound < d.pageSize {
+					numFound++
 					pipe.TTL(ctx, iter.Val())
 					pipe.Type(ctx, iter.Val())
 					pipe.MemoryUsage(ctx, iter.Val())
@@ -140,17 +121,16 @@ func (d *Data) scan(ctx context.Context) map[string]*Key {
 		})
 	} else {
 		rc := d.rc
-
-		currCursor := d.cursors[rc.Options().Addr]
-		scan := rc.Scan(ctx, currCursor, d.pattern, d.count)
-		_, nextCursor := scan.Val()
-		d.cursors[rc.Options().Addr] = nextCursor
-
-		iter := scan.Iterator()
+		if d.iters[rc.Options().Addr] == nil {
+			log("new iterator", rc.Options().Addr)
+			d.iters[rc.Options().Addr] = rc.Scan(ctx, 0, d.pattern, int64(d.pageSize)).Iterator()
+		}
+		iter := d.iters[rc.Options().Addr]
+		logfile.WriteString("old iterator" + rc.Options().Addr + "\n")
 
 		cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-			for iter.Next(ctx) {
-				d.scanned[rc.Options().Addr]++
+			for iter.Next(ctx) && numFound < d.pageSize {
+				numFound++
 				pipe.TTL(ctx, iter.Val())
 				pipe.Type(ctx, iter.Val())
 				pipe.MemoryUsage(ctx, iter.Val())
@@ -191,8 +171,13 @@ func (d *Data) scan(ctx context.Context) map[string]*Key {
 }
 
 func (d *Data) ScanMore() []list.Item {
+	ctx := context.Background()
+	for k, v := range d.scan(ctx) {
+		d.keys[k] = v
+	}
+
 	var items []list.Item
-	for _, key := range d.scan(context.Background()) {
+	for _, key := range d.keys {
 		items = append(items, *key)
 	}
 
