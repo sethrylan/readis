@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+# Install ttyd from https://github.com/tsl0922/ttyd/releases
+sudo apt update && sudo apt install -y vhs ffmpeg
+
+# install ttyd
+
+curl -LO https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64
+sudo install ttyd.x86_64 /usr/local/bin/ttyd
+rm ttyd.x86_64

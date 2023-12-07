@@ -3,11 +3,11 @@ package main
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	TypeLabelWidth = 10 // max is "sorted set"
+	TypeLabelWidth = 10 // max is "string"
 	KeyNameWidth   = 20 // assume the max to start, and adjust as keys are found
-	TTLWidth       = 11 // max is "101 minutes"
+	TTLWidth       = 12 // max is "101 minutes"
 	SizeWidth      = 7
-	RightHandWidth = 50
+	RightHandWidth = 30
 )
 
 func LeftHandWidth() int {
@@ -19,7 +19,7 @@ var (
 	cursorStyle  = focusedStyle.Copy()
 	docStyle     = lipgloss.NewStyle().Margin(1, 2)
 	headerStyle  = lipgloss.NewStyle().
-			Margin(1, 1).
+			Margin(0, 1, 1).
 			Foreground(lipgloss.Color("#c9510c")).
 			Bold(true).
 			Border(lipgloss.ThickBorder()).
@@ -39,7 +39,7 @@ func ColorForKeyType(keyType string) lipgloss.Color {
 		return lipgloss.Color("#0000ff")
 	case "set":
 		return lipgloss.Color("#935f35")
-	case "sorted set":
+	case "zset":
 		return lipgloss.Color("#932069")
 	case "string":
 		return lipgloss.Color("#6123bc")

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -153,98 +153,12 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 		}
 
 		for _, key := range keys {
-			// Send the key to the channel
-			ch <- key
+			debugDelay(0.50) // inject delay for testing
+			ch <- key        // Send the key to the channel
 		}
 	}()
 
 	return ch, ctx, cancel
-}
-
-func (d *Data) scan(ctx context.Context, s *Scan) map[string]*Key {
-	var cmds []redis.Cmder
-	var err error
-	var numFound int
-
-	debug("scan", s.pattern, fmt.Sprintf("%d", s.pageSize))
-
-	if d.cluster {
-		err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-			if s.iters[rc.Options().Addr] == nil {
-				s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
-			}
-			iter := s.iters[rc.Options().Addr]
-			shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-				for iter.Next(ctx) && numFound < s.pageSize {
-					numFound++
-					pipe.TTL(ctx, iter.Val())
-					pipe.Type(ctx, iter.Val())
-					pipe.MemoryUsage(ctx, iter.Val())
-				}
-				return nil
-			})
-			if err != nil {
-				panic(err)
-			}
-			cmds = append(cmds, shardCmds...)
-			return iter.Err()
-		})
-	} else {
-		rc := d.rc
-		if s.iters[rc.Options().Addr] == nil {
-			debug("new iterator: ", rc.Options().Addr)
-			s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
-		}
-		iter := s.iters[rc.Options().Addr]
-
-		cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-			for iter.Next(ctx) && numFound < s.pageSize {
-				numFound++
-				pipe.TTL(ctx, iter.Val())
-				pipe.Type(ctx, iter.Val())
-				pipe.MemoryUsage(ctx, iter.Val())
-			}
-			return nil
-		})
-	}
-
-	if err != nil {
-		panic(err)
-	}
-
-	keys := make(map[string]*Key)
-
-	for _, cmd := range cmds {
-		key := cmd.Args()[1].(string)
-		if key == "usage" {
-			key = cmd.Args()[2].(string)
-		}
-
-		if _, ok := keys[key]; !ok {
-			keys[key] = &Key{name: key}
-		}
-
-		switch c := cmd.(type) {
-		case *redis.DurationCmd:
-			keys[key].ttl = c.Val()
-		case *redis.StatusCmd:
-			keys[key].datatype = c.Val()
-		case *redis.IntCmd:
-			keys[key].size = uint64(c.Val())
-		default:
-			panic("unknown type")
-		}
-	}
-
-	return keys
-}
-
-func (d *Data) ScanMore(ctx context.Context, s *Scan) []list.Item {
-	var items []list.Item
-	for _, v := range d.scan(ctx, s) {
-		items = append(items, *v)
-	}
-	return items
 }
 
 func (d *Data) Fetch(key Key) string {
@@ -281,9 +195,17 @@ func (d *Data) Fetch(key Key) string {
 		}
 		return markdown
 	case "hash":
+		hash := uc.HGetAll(ctx, key.name).Val()
+
+		fields := make([]string, 0)
+		for f := range hash {
+			fields = append(fields, f)
+		}
+		sort.Strings(fields)
+
 		markdown := "| field | value |\n| --- | --- |\n"
-		for k, v := range uc.HGetAll(ctx, key.name).Val() {
-			markdown += fmt.Sprintf("| %s | %s |\n", k, v)
+		for _, f := range fields {
+			markdown += fmt.Sprintf("| %s | %s |\n", f, hash[f])
 		}
 		return markdown
 	default:

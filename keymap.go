@@ -7,17 +7,20 @@ type listKeyMap struct {
 	CursorDown key.Binding
 	PageNext   key.Binding
 	PagePrev   key.Binding
+	GoToStart  key.Binding
+	GoToEnd    key.Binding
 }
 
-func newListKeyMap() *listKeyMap {
+// These keys adjusted from keys.go, to account for fewer letter keys
+func NewListKeyMap() *listKeyMap {
 	return &listKeyMap{
 		PageNext: key.NewBinding(
 			key.WithKeys("right"),
-			key.WithHelp("→", "next page"),
+			key.WithHelp("→", "next"),
 		),
 		PagePrev: key.NewBinding(
 			key.WithKeys("left"),
-			key.WithHelp("←", "previous page"),
+			key.WithHelp("←", "prev"),
 		),
 		CursorUp: key.NewBinding(
 			key.WithKeys("up"),
@@ -26,6 +29,14 @@ func newListKeyMap() *listKeyMap {
 		CursorDown: key.NewBinding(
 			key.WithKeys("down"),
 			key.WithHelp("↓", "down"),
+		),
+		GoToStart: key.NewBinding(
+			key.WithKeys("home"),
+			key.WithHelp("home", "go to start"),
+		),
+		GoToEnd: key.NewBinding(
+			key.WithKeys("end"),
+			key.WithHelp("end", "go to end"),
 		),
 	}
 }

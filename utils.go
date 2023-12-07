@@ -1,7 +1,9 @@
 package main
 
 import (
+	"math/rand"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -22,6 +24,21 @@ func debug(a ...string) {
 	}
 
 	panicOnError(logfile.WriteString("\n"))
+}
+
+func randFloat(min, max float64) float64 {
+	return min + rand.Float64()*(max-min)
+}
+
+func debugDelay(randomness float64) {
+	if v, ok := os.LookupEnv("DEBUG_DELAY"); ok {
+		if delay, err := strconv.Atoi(v); err == nil {
+			if randomness > 0 {
+				delay = int(randFloat(float64(delay)*(1-randomness), float64(delay)*(1+randomness)))
+			}
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+		}
+	}
 }
 
 func panicOnError[T any](v T, err error) T {

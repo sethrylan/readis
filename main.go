@@ -21,7 +21,6 @@ import (
 
 type model struct {
 	data        *Data
-	keyMap      *listKeyMap
 	textinput   textinput.Model
 	keylist     list.Model
 	viewport    viewport.Model
@@ -54,7 +53,7 @@ func (m *model) resizeViews() {
 	// Find the longest key name, we'll use that to resize the left hand pane
 	for _, k := range m.keylist.VisibleItems() {
 		if k, ok := k.(Key); ok {
-			KeyNameWidth = max(KeyNameWidth, len(k.name))
+			KeyNameWidth = max(KeyNameWidth, len(k.name)+1)
 		}
 	}
 
@@ -83,8 +82,8 @@ func (m *model) resizeViews() {
 func NewModel(data *Data) model {
 	m := model{}
 
+	km := NewListKeyMap()
 	m.data = data
-	m.keyMap = newListKeyMap()
 
 	m.spinner = spinner.New(
 		spinner.WithSpinner(spinner.Ellipsis),
@@ -106,14 +105,23 @@ func NewModel(data *Data) model {
 	m.keylist.SetStatusBarItemName("Key", "Keys")
 	m.keylist.SetShowStatusBar(false)
 	m.keylist.SetShowTitle(false)
+	m.keylist.Help.ShowAll = false
 	m.keylist.SetShowPagination(true)
 	m.keylist.SetFilteringEnabled(false)
-	m.keylist.KeyMap.CursorUp = m.keyMap.CursorUp
-	m.keylist.KeyMap.CursorDown = m.keyMap.CursorDown
+	m.keylist.KeyMap.CursorUp = km.CursorUp
+	m.keylist.KeyMap.CursorDown = km.CursorDown
+	m.keylist.KeyMap.GoToStart = km.GoToStart
+	m.keylist.KeyMap.GoToEnd = km.GoToEnd
 	m.keylist.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			m.keyMap.PageNext,
-			m.keyMap.PagePrev,
+			km.PageNext,
+			km.PagePrev,
+		}
+	}
+	m.keylist.AdditionalFullHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			km.PageNext,
+			km.PagePrev,
 		}
 	}
 	return m
@@ -141,14 +149,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)      // start scan
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
-		case "up", "down", "left":
+		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews()
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
-			// if on the last page and the current scan is complete,
-			// then we can scan for the next page of results
+			// If on the last page and the current scan is complete,
+			// then we can scan for the next page of results.
+			// And ctrl+t? That's just a shortcut for now.
 			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning {
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 			}
@@ -183,10 +192,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	m.textinput, cmd = m.textinput.Update(msg) // Handle any other character input as pattern input
+	if m.viewport.VisibleLineCount() == 0 {
+		// On new searches, update the viewport with the first list item.
+		m.setViewportContent()
+	}
+
+	// Handle any other character input as pattern input
+	m.textinput, cmd = m.textinput.Update(msg)
 	cmds = append(cmds, cmd)
 
-	m.spinner, cmd = m.spinner.Update(msg) // Tick the spinner
+	// Tick the spinner
+	m.spinner, cmd = m.spinner.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -261,10 +277,10 @@ func (m model) View() string {
 
 // Key represents a Redis key, and implements [list.Item]
 type Key struct {
-	name     string
-	datatype string // Hash, String, Set, etc; https://redis.io/commands/type/
-	size     uint64 // in bytes
-	ttl      time.Duration
+	name     string        // the key name
+	datatype string        // Hash, String, Set, etc; https://redis.io/commands/type/
+	size     uint64        // in bytes
+	ttl      time.Duration // or -1, if no TTL. Note, in some rare cases, this can be -2.
 }
 
 func (k Key) TTLString() string {
