@@ -3,23 +3,34 @@ package main
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
-	// blurredStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
-	cursorStyle = focusedStyle.Copy()
-	// helpStyle        = blurredStyle.Copy()
-	docStyle         = lipgloss.NewStyle().Margin(1, 2)
-	headerStyle      = lipgloss.NewStyle().Margin(1, 1).Foreground(lipgloss.Color("#c9510c")).Bold(true).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#0a2b3b"))
-	inputStyle       = headerStyle.Copy().Width(104)
-	statusBlockStyle = headerStyle.Copy().Align(lipgloss.Right)
+	TypeLabelWidth = 10 // max is "sorted set"
+	KeyNameWidth   = 20 // assume the max to start, and adjust as keys are found
+	TTLWidth       = 11 // max is "101 minutes"
+	SizeWidth      = 7
+	RightHandWidth = 50
+)
 
+func LeftHandWidth() int {
+	return TypeLabelWidth + KeyNameWidth + TTLWidth + SizeWidth + 3
+}
+
+var (
+	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
+	cursorStyle  = focusedStyle.Copy()
+	docStyle     = lipgloss.NewStyle().Margin(1, 2)
+	headerStyle  = lipgloss.NewStyle().
+			Margin(1, 1).
+			Foreground(lipgloss.Color("#c9510c")).
+			Bold(true).
+			Border(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("#0a2b3b"))
 	viewportStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
+			BorderStyle(lipgloss.ThickBorder()).
 			BorderForeground(lipgloss.Color("#6e5494")).
 			PaddingRight(2)
-	// noStyle      = lipgloss.NewStyle()
-	// cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	// focusedButton = focusedStyle.Copy().Render("[ Submit ]")
-	// blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Submit"))
+	spinnerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#00ff00"))
 )
 
 func ColorForKeyType(keyType string) lipgloss.Color {

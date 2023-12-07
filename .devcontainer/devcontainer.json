@@ -2,7 +2,8 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "golang.go"
+        "golang.go",
+        "naumovs.color-highlight"
       ]
     },
     "codespaces": {
@@ -15,11 +16,5 @@
         }
       }
     }
-  },
-  "containerEnv": {
-    "GOPROXY": "https://goproxy.githubapp.com/mod,https://proxy.golang.org,direct",
-    "GOPRIVATE": "",
-    "GONOPROXY": "",
-    "GONOSUMDB": "github.com/github/*"
   }
 }

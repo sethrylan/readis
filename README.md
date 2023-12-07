@@ -6,7 +6,14 @@ Readis is a TUI [Redis](https://redis.io/) browser, built with ❤️ and [Charm
 ## Installing
 
 ```sh
-go install github.com/github/readis@latest
+➜ go install github.com/github/readis@main
+```
+or
+
+```sh
+➜ gh repo clone github/readis && \
+  cd readis && \
+  go build .
 ```
 
 ## Using
@@ -15,9 +22,9 @@ go install github.com/github/readis@latest
 # print help and options
 ➜ readis --help
 
-# try a local redis instance, by default
+# try a local redis instance (the default)
 ➜ readis
 
 # try a cluster URI
-➜ readis -c rediss://mycluster.example.com:10000
+➜ readis -c rediss://user:$pass@mycluster.example.com:10000
 ```

@@ -20,16 +20,64 @@ import (
 )
 
 type model struct {
-	data         *Data
-	keyMap       *listKeyMap
-	patternInput textinput.Model
-	keylist      list.Model
-	viewport     viewport.Model
-	initialized  bool
-	scan         *Scan
-	scanCh       <-chan *Key // receive-only channel for scan results
-	scanCtx      context.Context
-	spinner      spinner.Model
+	data        *Data
+	keyMap      *listKeyMap
+	textinput   textinput.Model
+	keylist     list.Model
+	viewport    viewport.Model
+	initialized bool
+	scan        *Scan
+	scanCh      <-chan *Key // receive-only channel for scan results
+	scanCtx     context.Context
+	spinner     spinner.Model
+
+	windowHeight, windowWidth int
+}
+
+// resizeViews should be called anytime the panes need to be udpated.
+// We can think of the rendered UI as having four panes:
+//
+// |---------------------|
+// |  input  |  status   |
+// | ------------------- |
+// | keylist | viewport  |
+// |---------------------|
+//
+// We call the top too the "header". The separations between the panes
+// should be kept consistent. That means we need to resize when:
+// 1) the window is reszied
+// 2) the keylist is updated (because the longer key names may require more on the left hand side)
+// 3) we change pages (same reason as 2)
+//
+// So we keep track of the longest key name and the window size for resizing.
+func (m *model) resizeViews() {
+	// Find the longest key name, we'll use that to resize the left hand pane
+	for _, k := range m.keylist.VisibleItems() {
+		if k, ok := k.(Key); ok {
+			KeyNameWidth = max(KeyNameWidth, len(k.name))
+		}
+	}
+
+	hMargin, vMargin := docStyle.GetFrameSize()
+	headerHeight := lipgloss.Height(m.headerView())
+	keylistWidth := LeftHandWidth()
+	keylistHeight := m.windowHeight - vMargin - headerHeight
+	m.keylist.SetSize(keylistWidth, keylistHeight)
+
+	debug(fmt.Sprintf("KeyNameWidth: %d", KeyNameWidth))
+	debug(fmt.Sprintf("window width: %d, height: %d", m.windowWidth, m.windowHeight))
+	debug(fmt.Sprintf("frame width: %d, height: %d", hMargin, vMargin))
+	debug(fmt.Sprintf("keylist width: %d, height: %d", keylistWidth, keylistHeight))
+
+	// Update RightHandWidth (also used for styling the status block)
+	RightHandWidth = m.windowWidth - hMargin - LeftHandWidth()
+
+	viewportWidth := RightHandWidth
+	viewportHeight := keylistHeight - headerHeight
+	m.viewport = viewport.New(viewportWidth, viewportHeight)
+	m.viewport.Style = viewportStyle.Width(viewportWidth)
+	m.viewport.YPosition = headerHeight
+	m.setViewportContent()
 }
 
 func NewModel(data *Data) model {
@@ -39,17 +87,17 @@ func NewModel(data *Data) model {
 	m.keyMap = newListKeyMap()
 
 	m.spinner = spinner.New(
-		spinner.WithSpinner(spinner.Dot),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))),
+		spinner.WithSpinner(spinner.Ellipsis),
+		spinner.WithStyle(spinnerStyle),
 	)
 
-	m.patternInput = textinput.New()
-	m.patternInput.Cursor.Style = cursorStyle
-	m.patternInput.CharLimit = 75
-	m.patternInput.Placeholder = "Pattern"
-	m.patternInput.Focus()
-	m.patternInput.PromptStyle = focusedStyle
-	m.patternInput.TextStyle = focusedStyle
+	m.textinput = textinput.New()
+	m.textinput.Cursor.Style = cursorStyle
+	m.textinput.CharLimit = 80
+	m.textinput.Placeholder = "Pattern"
+	m.textinput.Focus()
+	m.textinput.PromptStyle = focusedStyle
+	m.textinput.TextStyle = focusedStyle
 
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
@@ -60,12 +108,10 @@ func NewModel(data *Data) model {
 	m.keylist.SetShowTitle(false)
 	m.keylist.SetShowPagination(true)
 	m.keylist.SetFilteringEnabled(false)
-	m.keylist.SetHeight(docStyle.GetHeight() - 10)
 	m.keylist.KeyMap.CursorUp = m.keyMap.CursorUp
 	m.keylist.KeyMap.CursorDown = m.keyMap.CursorDown
 	m.keylist.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			m.keyMap.ScanMore,
 			m.keyMap.PageNext,
 			m.keyMap.PagePrev,
 		}
@@ -89,44 +135,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.data.Close()
 			return m, tea.Quit
 		case "enter":
-			m.keylist.SetItems([]list.Item{})                         // clear items
-			pageSize := m.keylist.Paginator.ItemsOnPage(1000)         // estimate the page size
-			m.scan = m.data.NewScan(m.patternInput.Value(), pageSize) // initialize scan
-			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)         // start scan
-
+			m.keylist.SetItems([]list.Item{})                      // clear items
+			pageSize := m.keylist.Paginator.ItemsOnPage(1000)      // estimate the page size
+			m.scan = m.data.NewScan(m.textinput.Value(), pageSize) // initialize scan
+			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)      // start scan
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			m.setViewportContent()
+			m.resizeViews()
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
-			// iff on the last page and the current scan is complete,
+			// if on the last page and the current scan is complete,
 			// then we can scan for the next page of results
 			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning {
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
-			m.setViewportContent()
+			m.resizeViews()
 			return m, tea.Batch(append(cmds, cmd)...)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
-		hMargin, vMargin := docStyle.GetFrameSize() // horizontal and vertical margins
-		keylistWidth := msg.Width - hMargin
-		keylistHeight := msg.Height - vMargin - lipgloss.Height(m.headerView())
-		m.keylist.SetSize(keylistWidth, keylistHeight)
-
-		headerHeight := lipgloss.Height(m.headerView())
-		viewportWidth := msg.Width - hMargin - 112     // the sum of Title widths and spacing (or input style width)
-		viewportHeight := keylistHeight - headerHeight // adjust for spacing
-		m.viewport = viewport.New(viewportWidth, viewportHeight)
-		m.viewport.Style = viewportStyle.Width(viewportWidth)
-		m.viewport.YPosition = headerHeight
-		m.setViewportContent()
-		statusBlockStyle = statusBlockStyle.Width(viewportWidth)
-
+		m.windowHeight, m.windowWidth = msg.Height, msg.Width
+		m.resizeViews()
 		m.initialized = true
 	case errMsg:
 		// handle errors like any other message
@@ -134,30 +167,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	hasMore := true
-
-	for hasMore {
+	more := true
+	for more {
 		select {
-		case item, ok := <-m.scanCh:
+		case key, ok := <-m.scanCh:
 			if !ok {
-				debug("scan channel closed")
-				hasMore = false
+				more = false
 			} else {
-				debug("received item: ", item.name)
-				c := m.keylist.InsertItem(math.MaxInt, *item)
+				debug("found key: ", key.name)
+				c := m.keylist.InsertItem(math.MaxInt, *key) // apppend to the end
 				cmds = append(cmds, c)
 			}
 		default:
-			debug("no item received")
-			hasMore = false
+			more = false
 		}
 	}
 
-	// Handle any other character input as pattern input
-	m.patternInput, cmd = m.patternInput.Update(msg)
+	m.textinput, cmd = m.textinput.Update(msg) // Handle any other character input as pattern input
 	cmds = append(cmds, cmd)
-	// Tick the spinner
-	m.spinner, cmd = m.spinner.Update(msg)
+
+	m.spinner, cmd = m.spinner.Update(msg) // Tick the spinner
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -165,23 +194,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) spinnerView() string {
 	if m.scan == nil || !m.scan.scanning {
-		return "\n\n "
+		return " "
 	}
-	return "\n\n" + m.spinner.View()
+	return spinnerStyle.Render("   scanning") + m.spinner.View()
 }
 
 func (m model) headerView() string {
-	input := inputStyle.Render(m.patternInput.View())
-	spinner := m.spinnerView()
-	statusBlock := statusBlockStyle.Render(
-		lipgloss.JoinVertical(lipgloss.Right,
+	inputBlock := headerStyle.Copy().
+		Width(LeftHandWidth() - 6).
+		Align(lipgloss.Left).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			m.textinput.View(),
+			m.spinnerView(),
+		))
+	statusBlock := headerStyle.Copy().
+		Width(RightHandWidth).
+		Align(lipgloss.Right).
+		Render(lipgloss.JoinVertical(lipgloss.Right,
 			m.data.uri,
 			fmt.Sprintf("%d keys", m.data.TotalKeys(context.Background())),
-		),
-	)
+		))
 
 	return lipgloss.NewStyle().Render(
-		lipgloss.JoinHorizontal(lipgloss.Top, input, spinner, statusBlock),
+		lipgloss.JoinHorizontal(lipgloss.Top, inputBlock, statusBlock),
 	)
 }
 
@@ -239,11 +274,16 @@ func (k Key) TTLString() string {
 	return humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
 }
 
+func (k Key) SizeString() string {
+	return humanize.Bytes(k.size)
+}
+
 func (k Key) Title() string {
-	return lipgloss.NewStyle().Width(10).Render(lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)) +
-		lipgloss.NewStyle().Width(80).Render(k.name) +
-		lipgloss.NewStyle().Width(11).Render(k.TTLString()) +
-		lipgloss.NewStyle().Width(7).Render(humanize.Bytes(k.size))
+	typeLabel := lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)
+	return lipgloss.NewStyle().Width(TypeLabelWidth).Render(typeLabel) +
+		lipgloss.NewStyle().Width(KeyNameWidth).Inline(true).Render(k.name) +
+		lipgloss.NewStyle().Width(TTLWidth).Render(k.TTLString()) +
+		lipgloss.NewStyle().Width(SizeWidth).Render(k.SizeString())
 }
 
 func (k Key) Description() string {
