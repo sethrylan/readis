@@ -19,6 +19,13 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
+// ldflags added by goreleaser
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 type model struct {
 	data        *Data
 	textinput   textinput.Model
@@ -313,11 +320,17 @@ func (k Key) FilterValue() string {
 ////////////////////////////////////////////
 
 func main() {
-	debug := flag.Bool("debug", false, "Enable debug logging to the debug.log file")
-	clusterMode := flag.Bool("c", false, "Use cluster mode")
+	debugFlag := flag.Bool("debug", false, "Enable debug logging to the debug.log file")
+	clusterFlag := flag.Bool("c", false, "Use cluster mode")
+	versionFlag := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
 
-	if *debug {
+	if *versionFlag {
+		fmt.Printf("%s (%s, built on %s)\n", version, commit, date)
+		os.Exit(0)
+	}
+
+	if *debugFlag {
 		logfile = panicOnError(tea.LogToFile("debug.log", "debug"))
 	}
 
@@ -326,7 +339,7 @@ func main() {
 		uri = "redis://localhost:6379"
 	}
 
-	d := NewData(uri, *clusterMode)
+	d := NewData(uri, *clusterFlag)
 	p := tea.NewProgram(
 		NewModel(d),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer

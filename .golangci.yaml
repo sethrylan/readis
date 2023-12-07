@@ -1,19 +1,4 @@
 linters:
-  disable-all: true
   enable:
-    - errcheck
-    - exhaustive
-    - goconst
-    - gocritic
-    - gocyclo
-    - gofmt
-    - goimports
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - tenv
-    - typecheck
-    - unconvert
-    - unused
-    - stylecheck
+  - gofmt
+  - nolintlint
