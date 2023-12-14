@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -71,6 +73,7 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan *Key)
+
 	go func() {
 		s.scanning = true
 		defer func() {
@@ -82,15 +85,37 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 		var err error
 		var numFound int
 
-		// ... (same as in the scan function)
-
-		if d.cluster {
-			err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
+		if strings.Contains(s.pattern, "*") {
+			if d.cluster {
+				err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
+					if s.iters[rc.Options().Addr] == nil {
+						s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
+					}
+					iter := s.iters[rc.Options().Addr]
+					shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+						for iter.Next(ctx) && numFound < s.pageSize {
+							numFound++
+							pipe.TTL(ctx, iter.Val())
+							pipe.Type(ctx, iter.Val())
+							pipe.MemoryUsage(ctx, iter.Val())
+						}
+						return nil
+					})
+					if err != nil {
+						panic(err)
+					}
+					cmds = append(cmds, shardCmds...)
+					return iter.Err()
+				})
+			} else {
+				rc := d.rc
 				if s.iters[rc.Options().Addr] == nil {
+					debug("new iterator: ", rc.Options().Addr)
 					s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 				}
 				iter := s.iters[rc.Options().Addr]
-				shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+
+				cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 					for iter.Next(ctx) && numFound < s.pageSize {
 						numFound++
 						pipe.TTL(ctx, iter.Val())
@@ -99,31 +124,27 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 					}
 					return nil
 				})
-				if err != nil {
-					panic(err)
-				}
-				cmds = append(cmds, shardCmds...)
-				return iter.Err()
-			})
-		} else {
-			rc := d.rc
-			if s.iters[rc.Options().Addr] == nil {
-				debug("new iterator: ", rc.Options().Addr)
-				s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
 			}
-			iter := s.iters[rc.Options().Addr]
+		} else {
+			var rc redis.UniversalClient
+			if d.cluster {
+				rc = d.cc
+			} else {
+				rc = d.rc
+			}
 
 			cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-				for iter.Next(ctx) && numFound < s.pageSize {
-					numFound++
-					pipe.TTL(ctx, iter.Val())
-					pipe.Type(ctx, iter.Val())
-					pipe.MemoryUsage(ctx, iter.Val())
-				}
+				pipe.TTL(ctx, s.pattern)
+				pipe.Type(ctx, s.pattern)
+				pipe.MemoryUsage(ctx, s.pattern)
 				return nil
 			})
+			s.scanning = false
 		}
 
+		if errors.Is(err, redis.Nil) {
+			return
+		}
 		if err != nil {
 			panic(err)
 		}

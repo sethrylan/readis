@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -165,7 +166,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If on the last page and the current scan is complete,
 			// then we can scan for the next page of results.
 			// And ctrl+t? That's just a shortcut for now.
-			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning {
+			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning && strings.Contains(m.scan.pattern, "*") {
 				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
