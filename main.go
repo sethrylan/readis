@@ -35,7 +35,6 @@ type model struct {
 	initialized bool
 	scan        *Scan
 	scanCh      <-chan *Key // receive-only channel for scan results
-	scanCtx     context.Context
 	spinner     spinner.Model
 
 	windowHeight, windowWidth int
@@ -143,6 +142,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
+	ctx := context.Background()
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		debug("key pressed: ", msg.String())
@@ -154,7 +155,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist.SetItems([]list.Item{})                      // clear items
 			pageSize := m.keylist.Paginator.ItemsOnPage(1000)      // estimate the page size
 			m.scan = m.data.NewScan(m.textinput.Value(), pageSize) // initialize scan
-			m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)      // start scan
+			m.scanCh = m.data.scanAsync(ctx, m.scan)               // start scan
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
@@ -167,7 +168,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// then we can scan for the next page of results.
 			// And ctrl+t? That's just a shortcut for now.
 			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning && strings.Contains(m.scan.pattern, "*") {
-				m.scanCh, m.scanCtx, _ = m.data.scanAsync(m.scan)
+				m.scanCh = m.data.scanAsync(ctx, m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews()
@@ -321,6 +322,12 @@ func (k Key) FilterValue() string {
 ////////////////////////////////////////////
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+		}
+	}()
+
 	debugFlag := flag.Bool("debug", false, "Enable debug logging to the debug.log file")
 	clusterFlag := flag.Bool("c", false, "Use cluster mode")
 	versionFlag := flag.Bool("version", false, "Print version and exit")

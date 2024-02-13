@@ -68,10 +68,9 @@ func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 	}
 }
 
-func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelFunc) {
+func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 	debug("scan: ", s.pattern, " ", fmt.Sprintf("%d", s.pageSize))
 
-	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan *Key)
 
 	go func() {
@@ -102,7 +101,7 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 						return nil
 					})
 					if err != nil {
-						panic(err)
+						return err
 					}
 					cmds = append(cmds, shardCmds...)
 					return iter.Err()
@@ -122,7 +121,7 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 						pipe.Type(ctx, iter.Val())
 						pipe.MemoryUsage(ctx, iter.Val())
 					}
-					return nil
+					return iter.Err()
 				})
 			}
 		} else {
@@ -146,7 +145,12 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 			return
 		}
 		if err != nil {
-			panic(err)
+			ch <- &Key{
+				name:     err.Error(),
+				datatype: "error",
+				ttl:      -1,
+			}
+			return
 		}
 
 		keys := make(map[string]*Key)
@@ -179,7 +183,7 @@ func (d *Data) scanAsync(s *Scan) (<-chan *Key, context.Context, context.CancelF
 		}
 	}()
 
-	return ch, ctx, cancel
+	return ch
 }
 
 func (d *Data) Fetch(key Key) string {
