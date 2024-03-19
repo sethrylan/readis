@@ -34,6 +34,8 @@ func (d *Data) TotalKeys(ctx context.Context) int64 {
 }
 
 func NewData(uri string, cluster bool) *Data {
+	uri = normalizeUri(uri)
+
 	if cluster {
 		options := panicOnError(redis.ParseClusterURL(uri))
 		return &Data{

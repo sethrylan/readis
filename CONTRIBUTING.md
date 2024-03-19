@@ -1,7 +1,8 @@
 # PRs Welcome!
 
 ## Checking your code
-1. Test your code by running `go run .` in the root directory.
+1. Run `go test -race ./...`
+1. Validate your code by running `go run .` in the root directory.
 1. Try with a local Redis instance by running
     - `docker run --name redis -d -p 6379:6379 redis --enable-debug-command yes`
 1. Or with a more configured redis instance

@@ -2,6 +2,7 @@ package main
 
 import (
 	"math/rand"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -46,4 +47,18 @@ func panicOnError[T any](v T, err error) T {
 		panic(err)
 	}
 	return v
+}
+
+// normalizeUri returns a URI that matches the format expected by go-redis's URI parsing.
+//
+// redis-cli expects a URI in the format "redis[s]://[password@]host[:port]", but go-redis's URI parsing expects
+// a colon before the password, if password is present. The parsing in go-redis is standard parsing; the omitted colon
+// expected by redis-cli is non-standard, but well-intended, since redis supports passwords but not usernames.
+func normalizeUri(uri string) string {
+	u := panicOnError(url.Parse(uri))
+	if u.User != nil && u.User.Username() != "" {
+		// if the username is set, the value is the password
+		u.User = url.UserPassword("", u.User.Username())
+	}
+	return u.String()
 }
