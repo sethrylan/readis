@@ -22,15 +22,10 @@ type Scan struct {
 	pageSize int
 	pattern  string
 	iters    map[string]*redis.ScanIterator
-	scanning bool
 }
 
 func (d *Data) TotalKeys(ctx context.Context) int64 {
-	if d.cluster {
-		return d.cc.DBSize(context.Background()).Val()
-	}
-
-	return d.rc.DBSize(context.Background()).Val()
+	return d.client().DBSize(ctx).Val()
 }
 
 func NewData(uri string, cluster bool) *Data {
@@ -53,12 +48,8 @@ func NewData(uri string, cluster bool) *Data {
 	}
 }
 
-func (d *Data) Close() {
-	if d.cluster {
-		d.cc.Close()
-	} else {
-		d.rc.Close()
-	}
+func (d *Data) Close() error {
+	return d.client().Close()
 }
 
 func (d *Data) NewScan(pattern string, pageSize int) *Scan {
@@ -70,17 +61,23 @@ func (d *Data) NewScan(pattern string, pageSize int) *Scan {
 	}
 }
 
+// client is a helper function to get the redis client depending on mode (standalone, cluster, etc)
+func (d *Data) client() redis.UniversalClient {
+	if d.cluster {
+		return d.cc
+	}
+	return d.rc
+}
+
 func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 	debug("scan: ", s.pattern, " ", fmt.Sprintf("%d", s.pageSize))
 
 	ch := make(chan *Key)
 
 	go func() {
-		s.scanning = true
 		defer func() {
 			// Close the channel to signal that we're done
 			close(ch)
-			s.scanning = false
 		}()
 		var cmds []redis.Cmder
 		var err error
@@ -127,20 +124,12 @@ func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 				})
 			}
 		} else {
-			var rc redis.UniversalClient
-			if d.cluster {
-				rc = d.cc
-			} else {
-				rc = d.rc
-			}
-
-			cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			cmds, err = d.client().Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				pipe.TTL(ctx, s.pattern)
 				pipe.Type(ctx, s.pattern)
 				pipe.MemoryUsage(ctx, s.pattern)
 				return nil
 			})
-			s.scanning = false
 		}
 
 		if errors.Is(err, redis.Nil) {
@@ -188,41 +177,35 @@ func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 	return ch
 }
 
-func (d *Data) Fetch(key Key) string {
-	var ctx = context.Background()
-	var uc redis.UniversalClient
-	if d.cluster {
-		uc = d.cc
-	} else {
-		uc = d.rc
-	}
+func (d *Data) Fetch(ctx context.Context, key Key) string {
+	c := d.client()
 
 	switch key.datatype {
 	case "string":
-		r, err := uc.Get(ctx, key.name).Result()
+		r, err := c.Get(ctx, key.name).Result()
 		if err == nil {
 			return fmt.Sprintf("```%s```", r)
 		}
 	case "list":
 		markdown := ""
-		for _, v := range uc.LRange(ctx, key.name, 0, -1).Val() {
+		for _, v := range c.LRange(ctx, key.name, 0, -1).Val() {
 			markdown += fmt.Sprintf("- `%v`\n", v)
 		}
 		return markdown
 	case "set":
 		markdown := ""
-		for _, v := range uc.SMembers(ctx, key.name).Val() {
+		for _, v := range c.SMembers(ctx, key.name).Val() {
 			markdown += fmt.Sprintf("- `%v`\n", v)
 		}
 		return markdown
 	case "zset":
 		markdown := "| score | value |\n| --- | --- |\n"
-		for _, z := range uc.ZRangeWithScores(ctx, key.name, 0, -1).Val() {
+		for _, z := range c.ZRangeWithScores(ctx, key.name, 0, -1).Val() {
 			markdown += fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member)
 		}
 		return markdown
 	case "hash":
-		hash := uc.HGetAll(ctx, key.name).Val()
+		hash := c.HGetAll(ctx, key.name).Val()
 
 		fields := make([]string, 0)
 		for f := range hash {

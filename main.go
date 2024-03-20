@@ -35,6 +35,7 @@ type model struct {
 	initialized bool
 	scan        *Scan
 	scanCh      <-chan *Key // receive-only channel for scan results
+	scanning    bool
 	spinner     spinner.Model
 
 	windowHeight, windowWidth int
@@ -56,7 +57,7 @@ type model struct {
 // 3) we change pages (same reason as 2)
 //
 // So we keep track of the longest key name and the window size for resizing.
-func (m *model) resizeViews() {
+func (m *model) resizeViews(ctx context.Context) {
 	// Find the longest key name, we'll use that to resize the left hand pane
 	for _, k := range m.keylist.VisibleItems() {
 		if k, ok := k.(Key); ok {
@@ -83,7 +84,7 @@ func (m *model) resizeViews() {
 	m.viewport = viewport.New(viewportWidth, viewportHeight)
 	m.viewport.Style = viewportStyle.Width(viewportWidth)
 	m.viewport.YPosition = headerHeight
-	m.setViewportContent()
+	m.setViewportContent(ctx)
 }
 
 func NewModel(data *Data) model {
@@ -149,7 +150,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		debug("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
-			m.data.Close()
+			err := m.data.Close()
+			if err != nil {
+				fmt.Println("error closing connection: ", err)
+			}
 			return m, tea.Quit
 		case "enter":
 			m.keylist.SetItems([]list.Item{})                      // clear items
@@ -161,23 +165,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
 			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
-			m.resizeViews()
+			m.resizeViews(ctx)
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
 			// If on the last page and the current scan is complete,
 			// then we can scan for the next page of results.
 			// And ctrl+t? That's just a shortcut for now.
-			if m.keylist.Paginator.OnLastPage() && !m.scan.scanning && strings.Contains(m.scan.pattern, "*") {
+			if m.keylist.Paginator.OnLastPage() && !m.scanning && strings.Contains(m.scan.pattern, "*") {
 				m.scanCh = m.data.scanAsync(ctx, m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
-			m.resizeViews()
+			m.resizeViews(ctx)
 			return m, tea.Batch(append(cmds, cmd)...)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
 		m.windowHeight, m.windowWidth = msg.Height, msg.Width
-		m.resizeViews()
+		m.resizeViews(ctx)
 		m.initialized = true
 	case errMsg:
 		// handle errors like any other message
@@ -185,25 +189,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	more := true
-	for more {
+	scanning := true
+	for scanning {
 		select {
 		case key, ok := <-m.scanCh:
 			if !ok {
-				more = false
+				scanning = false
 			} else {
 				debug("found key: ", key.name)
 				c := m.keylist.InsertItem(math.MaxInt, *key) // apppend to the end
 				cmds = append(cmds, c)
 			}
 		default:
-			more = false
+			scanning = false
 		}
 	}
 
 	if m.viewport.VisibleLineCount() == 0 {
 		// On new searches, update the viewport with the first list item.
-		m.setViewportContent()
+		m.setViewportContent(ctx)
 	}
 
 	// Handle any other character input as pattern input
@@ -218,7 +222,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) spinnerView() string {
-	if m.scan == nil || !m.scan.scanning {
+	if m.scan == nil || !m.scanning {
 		return " "
 	}
 	return spinnerStyle.Render("   scanning") + m.spinner.View()
@@ -256,9 +260,9 @@ func (m model) resultsView() string {
 	)
 }
 
-func (m *model) setViewportContent() {
+func (m *model) setViewportContent(ctx context.Context) {
 	if m.keylist.SelectedItem() != nil {
-		markdown := m.data.Fetch(m.keylist.SelectedItem().(Key))
+		markdown := m.data.Fetch(ctx, m.keylist.SelectedItem().(Key))
 		renderer := panicOnError(glamour.NewTermRenderer(
 			glamour.WithAutoStyle(),
 			glamour.WithWordWrap(m.viewport.Width),
@@ -290,6 +294,10 @@ type Key struct {
 	datatype string        // Hash, String, Set, etc; https://redis.io/commands/type/
 	size     uint64        // in bytes
 	ttl      time.Duration // or -1, if no TTL. Note, in some rare cases, this can be -2.
+}
+
+func (k Key) String() string {
+	return fmt.Sprintf("%s (%s)", k.name, k.datatype)
 }
 
 func (k Key) TTLString() string {
@@ -339,6 +347,7 @@ func main() {
 	}
 
 	if *debugFlag {
+		// all calls to fmt.Println will be written to debug.log
 		logfile = panicOnError(tea.LogToFile("debug.log", "debug"))
 	}
 

@@ -1,10 +1,10 @@
 # PRs Welcome!
 
-## Checking your code
+## Testing your code
 1. Run `go test -race ./...`
 1. Validate your code by running `go run .` in the root directory.
 1. Try with a local Redis instance by running
-    - `docker run --name redis -d -p 6379:6379 redis --enable-debug-command yes`
+    - `docker run --rm --name redis -p 6379:6379 redis --enable-debug-command yes`
 1. Or with a more configured redis instance
 ```
 cat > redis.conf <<EOF
@@ -12,7 +12,7 @@ requirepass foobared
 enable-debug-command yes
 EOF
 
-docker run -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-server /usr/local/etc/redis/redis.conf
+docker run --rm -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-server /usr/local/etc/redis/redis.conf
 ```
 1. Use the undocumented `DEBUG POPULATE` command to populate the database with some data.
     - `DEBUG POPULATE 1000 testkeys 4096`
@@ -23,6 +23,7 @@ docker run -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-serve
 
 ## Reviewing your code
 1. Run `go mod tidy`
+1. Run `golangci-lint run`
 1. Update the demo video, if needed.
 
 ## Releasing a new version
