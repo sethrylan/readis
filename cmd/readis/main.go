@@ -44,7 +44,7 @@ type model struct {
 	windowHeight, windowWidth int
 }
 
-// resizeViews should be called anytime the panes need to be udpated.
+// resizeViews should be called anytime the panes need to be updated.
 // We can think of the rendered UI as having four panes:
 //
 // |---------------------|
@@ -145,8 +145,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
-
-	ctx := context.Background()
+	var ctx context.Context = context.Background()
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -214,12 +213,12 @@ func (m *model) readAndInsert() []tea.Cmd {
 	var cmds []tea.Cmd
 	for {
 		select {
-		case key, ok := <-m.scanCh:
+		case k, ok := <-m.scanCh:
 			if !ok {
 				return cmds
 			}
-			util.Debug("found key: ", key.Name)
-			cmd := m.keylist.InsertItem(math.MaxInt, Key{*key})
+			util.Debug("found key: ", k.Name)
+			cmd := m.keylist.InsertItem(math.MaxInt, Key{*k})
 			cmds = append(cmds, cmd)
 		default:
 			return cmds
@@ -227,14 +226,14 @@ func (m *model) readAndInsert() []tea.Cmd {
 	}
 }
 
-func (m model) spinnerView() string {
+func (m *model) spinnerView() string {
 	if m.scan == nil || !m.scan.Scanning() {
 		return " "
 	}
 	return spinnerStyle.Render("   scanning") + m.spinner.View()
 }
 
-func (m model) headerView() string {
+func (m *model) headerView() string {
 	inputBlock := headerStyle.Copy().
 		Width(LeftHandWidth() - 6).
 		Align(lipgloss.Left).
@@ -246,7 +245,7 @@ func (m model) headerView() string {
 		Width(RightHandWidth).
 		Align(lipgloss.Right).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
-			m.data.Uri(),
+			m.data.URI(),
 			fmt.Sprintf("%d keys", m.data.TotalKeys(context.Background())),
 		))
 
@@ -255,7 +254,7 @@ func (m model) headerView() string {
 	)
 }
 
-func (m model) resultsView() string {
+func (m *model) resultsView() string {
 	if m.keylist.SelectedItem() == nil {
 		return m.keylist.View()
 	}
@@ -421,5 +420,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	defer util.Logfile.Close()
+	util.Logfile.Close()
 }

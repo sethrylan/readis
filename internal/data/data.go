@@ -30,7 +30,7 @@ type Key struct {
 
 // NewData creates a new Data object for interacting with Redis.
 func NewData(uri string, cluster bool) *Data {
-	uri = util.NormalizeUri(uri)
+	uri = util.NormalizeURI(uri)
 
 	if cluster {
 		options := util.PanicOnError(redis.ParseClusterURL(uri))
@@ -47,7 +47,7 @@ func NewData(uri string, cluster bool) *Data {
 	}
 }
 
-func (d *Data) Uri() string {
+func (d *Data) URI() string {
 	if d.cluster {
 		return d.cc.Options().Addrs[0]
 	}
@@ -195,7 +195,6 @@ func (d *Data) Fetch(ctx context.Context, key Key) string {
 		return markdown
 	default:
 		return "Unknown data type: " + key.Datatype
-
 	}
 
 	return "could not get value for " + key.Datatype

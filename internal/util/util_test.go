@@ -21,7 +21,7 @@ func TestNormalizeUri(t *testing.T) {
 		t.Run(test.input, func(t *testing.T) {
 			t.Parallel() // marks each test case as capable of running in parallel with each other
 			t.Log(test.input)
-			if got, expected := NormalizeUri(test.input), test.want; got != expected {
+			if got, expected := NormalizeURI(test.input), test.want; got != expected {
 				t.Fatalf("normalizeUri(%q) returned %q; expected %q", test.input, got, expected)
 			}
 		})
