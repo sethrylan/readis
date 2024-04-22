@@ -2,7 +2,7 @@
 
 ## Testing your code
 1. Run `go test -race ./...`
-1. Validate your code by running `go run .` in the root directory.
+1. Validate your code by running `go run cmd/readis/main.go` in the root directory.
 1. Try with a local Redis instance by running
     - `docker run --rm --name redis -p 6379:6379 redis --enable-debug-command yes`
 1. Or with a more configured redis instance
@@ -19,7 +19,7 @@ docker run --rm -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-
 
 ### Debug options
 - The `--debug` flag will print debug logs to the debug.log file.
-- The `DEBUG_DELAY` env var will add additional delay to database commands. Useful for simulating network delay.
+- The `DEBUG_DELAY` env var will add additional delay to database commands. Useful for simulating network delay. E.g., `DEBUG_DELAY=100 go run cmd/readis/main.go` to add an average of 100ms of randomized delay
 
 ## Reviewing your code
 1. Run `go mod tidy`

@@ -22,5 +22,6 @@ go.work
 
 debug.log
 readis
+!cmd/readis
 
 dist/

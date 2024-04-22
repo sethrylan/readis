@@ -1,4 +1,4 @@
-package main
+package data
 
 import (
 	"context"
@@ -6,59 +6,60 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/github/readis/internal/util"
 	"github.com/redis/go-redis/v9"
 )
 
+// Data is a wrapper around redis clients; standalone or cluster.
 type Data struct {
-	uri     string
 	cluster bool
 
 	rc *redis.Client
 	cc *redis.ClusterClient
 }
 
-type Scan struct {
-	pageSize int
-	pattern  string
-	iters    map[string]*redis.ScanIterator
+// Key represents a Redis key
+type Key struct {
+	Name     string        // the key name
+	Datatype string        // Hash, String, Set, etc; https://redis.io/commands/type/
+	Size     uint64        // in bytes
+	TTL      time.Duration // or -1, if no TTL. Note, in some rare cases, this can be -2.
 }
 
-func (d *Data) TotalKeys(ctx context.Context) int64 {
-	return d.client().DBSize(ctx).Val()
-}
-
+// NewData creates a new Data object for interacting with Redis.
 func NewData(uri string, cluster bool) *Data {
-	uri = normalizeUri(uri)
+	uri = util.NormalizeUri(uri)
 
 	if cluster {
-		options := panicOnError(redis.ParseClusterURL(uri))
+		options := util.PanicOnError(redis.ParseClusterURL(uri))
 		return &Data{
-			uri:     options.Addrs[0],
 			cluster: true,
 			cc:      redis.NewClusterClient(options),
 		}
 	}
 
-	options := panicOnError(redis.ParseURL(uri))
+	options := util.PanicOnError(redis.ParseURL(uri))
 	return &Data{
-		uri:     options.Addr,
 		cluster: false,
 		rc:      redis.NewClient(options),
 	}
+}
+
+func (d *Data) Uri() string {
+	if d.cluster {
+		return d.cc.Options().Addrs[0]
+	}
+	return d.rc.Options().Addr
 }
 
 func (d *Data) Close() error {
 	return d.client().Close()
 }
 
-func (d *Data) NewScan(pattern string, pageSize int) *Scan {
-	debug("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
-	return &Scan{
-		pageSize: pageSize,
-		pattern:  pattern,
-		iters:    make(map[string]*redis.ScanIterator),
-	}
+func (d *Data) TotalKeys(ctx context.Context) int64 {
+	return d.client().DBSize(ctx).Val()
 }
 
 // client is a helper function to get the redis client depending on mode (standalone, cluster, etc)
@@ -69,59 +70,33 @@ func (d *Data) client() redis.UniversalClient {
 	return d.rc
 }
 
-func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
-	debug("scan: ", s.pattern, " ", fmt.Sprintf("%d", s.pageSize))
-
+func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
+	util.Debug("scan: ", s.pattern, " ", fmt.Sprintf("%d", s.pageSize))
+	s.scanning = true
 	ch := make(chan *Key)
 
 	go func() {
 		defer func() {
 			// Close the channel to signal that we're done
+			s.scanning = false
 			close(ch)
 		}()
 		var cmds []redis.Cmder
 		var err error
-		var numFound int
 
 		if strings.Contains(s.pattern, "*") {
 			if d.cluster {
 				err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-					if s.iters[rc.Options().Addr] == nil {
-						s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
-					}
-					iter := s.iters[rc.Options().Addr]
-					shardCmds, err := rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-						for iter.Next(ctx) && numFound < s.pageSize {
-							numFound++
-							pipe.TTL(ctx, iter.Val())
-							pipe.Type(ctx, iter.Val())
-							pipe.MemoryUsage(ctx, iter.Val())
-						}
-						return nil
-					})
+					shardCmds, err := s.PipelinedCmds(ctx, rc)
 					if err != nil {
 						return err
 					}
 					cmds = append(cmds, shardCmds...)
-					return iter.Err()
+					return nil
 				})
 			} else {
 				rc := d.rc
-				if s.iters[rc.Options().Addr] == nil {
-					debug("new iterator: ", rc.Options().Addr)
-					s.iters[rc.Options().Addr] = rc.Scan(ctx, 0, s.pattern, int64(s.pageSize)).Iterator()
-				}
-				iter := s.iters[rc.Options().Addr]
-
-				cmds, err = rc.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-					for iter.Next(ctx) && numFound < s.pageSize {
-						numFound++
-						pipe.TTL(ctx, iter.Val())
-						pipe.Type(ctx, iter.Val())
-						pipe.MemoryUsage(ctx, iter.Val())
-					}
-					return iter.Err()
-				})
+				cmds, err = s.PipelinedCmds(ctx, rc)
 			}
 		} else {
 			cmds, err = d.client().Pipelined(ctx, func(pipe redis.Pipeliner) error {
@@ -137,9 +112,9 @@ func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 		}
 		if err != nil {
 			ch <- &Key{
-				name:     err.Error(),
-				datatype: "error",
-				ttl:      -1,
+				Name:     err.Error(),
+				Datatype: "error",
+				TTL:      -1,
 			}
 			return
 		}
@@ -153,24 +128,24 @@ func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 			}
 
 			if _, ok := keys[key]; !ok {
-				keys[key] = &Key{name: key}
+				keys[key] = &Key{Name: key}
 			}
 
 			switch c := cmd.(type) {
 			case *redis.DurationCmd:
-				keys[key].ttl = c.Val()
+				keys[key].TTL = c.Val()
 			case *redis.StatusCmd:
-				keys[key].datatype = c.Val()
+				keys[key].Datatype = c.Val()
 			case *redis.IntCmd:
-				keys[key].size = uint64(c.Val())
+				keys[key].Size = uint64(c.Val())
 			default:
 				panic("unknown type")
 			}
 		}
 
 		for _, key := range keys {
-			debugDelay(0.50) // inject delay for testing
-			ch <- key        // Send the key to the channel
+			util.DebugDelay(0.50) // inject delay for testing
+			ch <- key             // Send the key to the channel
 		}
 	}()
 
@@ -180,32 +155,32 @@ func (d *Data) scanAsync(ctx context.Context, s *Scan) <-chan *Key {
 func (d *Data) Fetch(ctx context.Context, key Key) string {
 	c := d.client()
 
-	switch key.datatype {
+	switch key.Datatype {
 	case "string":
-		r, err := c.Get(ctx, key.name).Result()
+		r, err := c.Get(ctx, key.Name).Result()
 		if err == nil {
 			return fmt.Sprintf("```%s```", r)
 		}
 	case "list":
 		markdown := ""
-		for _, v := range c.LRange(ctx, key.name, 0, -1).Val() {
+		for _, v := range c.LRange(ctx, key.Name, 0, -1).Val() {
 			markdown += fmt.Sprintf("- `%v`\n", v)
 		}
 		return markdown
 	case "set":
 		markdown := ""
-		for _, v := range c.SMembers(ctx, key.name).Val() {
+		for _, v := range c.SMembers(ctx, key.Name).Val() {
 			markdown += fmt.Sprintf("- `%v`\n", v)
 		}
 		return markdown
 	case "zset":
 		markdown := "| score | value |\n| --- | --- |\n"
-		for _, z := range c.ZRangeWithScores(ctx, key.name, 0, -1).Val() {
+		for _, z := range c.ZRangeWithScores(ctx, key.Name, 0, -1).Val() {
 			markdown += fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member)
 		}
 		return markdown
 	case "hash":
-		hash := c.HGetAll(ctx, key.name).Val()
+		hash := c.HGetAll(ctx, key.Name).Val()
 
 		fields := make([]string, 0)
 		for f := range hash {
@@ -219,9 +194,9 @@ func (d *Data) Fetch(ctx context.Context, key Key) string {
 		}
 		return markdown
 	default:
-		return "Unknown data type: " + key.datatype
+		return "Unknown data type: " + key.Datatype
 
 	}
 
-	return "could not get value for " + key.datatype
+	return "could not get value for " + key.Datatype
 }

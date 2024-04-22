@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"strings"
 	"time"
+
+	"github.com/github/readis/internal/data"
+	"github.com/github/readis/internal/ui"
+	"github.com/github/readis/internal/util"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -28,15 +31,15 @@ var (
 )
 
 type model struct {
-	data        *Data
+	data    *data.Data
+	scan    *data.Scan
+	scanCh  <-chan *data.Key // receive-only channel for scan results
+	spinner spinner.Model
+
 	textinput   textinput.Model
 	keylist     list.Model
 	viewport    viewport.Model
 	initialized bool
-	scan        *Scan
-	scanCh      <-chan *Key // receive-only channel for scan results
-	scanning    bool
-	spinner     spinner.Model
 
 	windowHeight, windowWidth int
 }
@@ -61,7 +64,7 @@ func (m *model) resizeViews(ctx context.Context) {
 	// Find the longest key name, we'll use that to resize the left hand pane
 	for _, k := range m.keylist.VisibleItems() {
 		if k, ok := k.(Key); ok {
-			KeyNameWidth = max(KeyNameWidth, len(k.name)+1)
+			KeyNameWidth = max(KeyNameWidth, len(k.Name)+1)
 		}
 	}
 
@@ -71,10 +74,10 @@ func (m *model) resizeViews(ctx context.Context) {
 	keylistHeight := m.windowHeight - vMargin - headerHeight
 	m.keylist.SetSize(keylistWidth, keylistHeight)
 
-	debug(fmt.Sprintf("KeyNameWidth: %d", KeyNameWidth))
-	debug(fmt.Sprintf("window width: %d, height: %d", m.windowWidth, m.windowHeight))
-	debug(fmt.Sprintf("frame width: %d, height: %d", hMargin, vMargin))
-	debug(fmt.Sprintf("keylist width: %d, height: %d", keylistWidth, keylistHeight))
+	util.Debug(fmt.Sprintf("KeyNameWidth: %d", KeyNameWidth))
+	util.Debug(fmt.Sprintf("window width: %d, height: %d", m.windowWidth, m.windowHeight))
+	util.Debug(fmt.Sprintf("frame width: %d, height: %d", hMargin, vMargin))
+	util.Debug(fmt.Sprintf("keylist width: %d, height: %d", keylistWidth, keylistHeight))
 
 	// Update RightHandWidth (also used for styling the status block)
 	RightHandWidth = m.windowWidth - hMargin - LeftHandWidth()
@@ -87,10 +90,10 @@ func (m *model) resizeViews(ctx context.Context) {
 	m.setViewportContent(ctx)
 }
 
-func NewModel(data *Data) model {
+func NewModel(data *data.Data) model {
 	m := model{}
 
-	km := NewListKeyMap()
+	km := ui.NewListKeyMap()
 	m.data = data
 
 	m.spinner = spinner.New(
@@ -147,7 +150,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		debug("key pressed: ", msg.String())
+		util.Debug("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
 			err := m.data.Close()
@@ -156,10 +159,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		case "enter":
-			m.keylist.SetItems([]list.Item{})                      // clear items
-			pageSize := m.keylist.Paginator.ItemsOnPage(1000)      // estimate the page size
-			m.scan = m.data.NewScan(m.textinput.Value(), pageSize) // initialize scan
-			m.scanCh = m.data.scanAsync(ctx, m.scan)               // start scan
+			m.keylist.SetItems([]list.Item{})                    // clear items
+			pageSize := m.keylist.Paginator.ItemsOnPage(1000)    // estimate the page size
+			m.scan = data.NewScan(m.textinput.Value(), pageSize) // initialize scan
+			m.scanCh = m.data.ScanAsync(ctx, m.scan)             // start scan
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
@@ -170,9 +173,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t", "right":
 			// If on the last page and the current scan is complete,
 			// then we can scan for the next page of results.
-			// And ctrl+t? That's just a shortcut for now.
-			if m.keylist.Paginator.OnLastPage() && !m.scanning && strings.Contains(m.scan.pattern, "*") {
-				m.scanCh = m.data.scanAsync(ctx, m.scan)
+			// And ctrl+t? That's just an undocumented shortcut.
+			if m.keylist.Paginator.OnLastPage() && m.scan != nil && !m.scan.Scanning() && m.scan.HasMore() {
+				m.scanCh = m.data.ScanAsync(ctx, m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews(ctx)
@@ -183,27 +186,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.windowHeight, m.windowWidth = msg.Height, msg.Width
 		m.resizeViews(ctx)
 		m.initialized = true
-	case errMsg:
+	case error:
 		// handle errors like any other message
 		m.viewport.SetContent(msg.Error())
 		return m, nil
 	}
 
-	scanning := true
-	for scanning {
-		select {
-		case key, ok := <-m.scanCh:
-			if !ok {
-				scanning = false
-			} else {
-				debug("found key: ", key.name)
-				c := m.keylist.InsertItem(math.MaxInt, *key) // apppend to the end
-				cmds = append(cmds, c)
-			}
-		default:
-			scanning = false
-		}
-	}
+	cmds = append(cmds, m.readAndInsert()...)
 
 	if m.viewport.VisibleLineCount() == 0 {
 		// On new searches, update the viewport with the first list item.
@@ -221,8 +210,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *model) readAndInsert() []tea.Cmd {
+	var cmds []tea.Cmd
+	for {
+		select {
+		case key, ok := <-m.scanCh:
+			if !ok {
+				return cmds
+			}
+			util.Debug("found key: ", key.Name)
+			cmd := m.keylist.InsertItem(math.MaxInt, Key{*key})
+			cmds = append(cmds, cmd)
+		default:
+			return cmds
+		}
+	}
+}
+
 func (m model) spinnerView() string {
-	if m.scan == nil || !m.scanning {
+	if m.scan == nil || !m.scan.Scanning() {
 		return " "
 	}
 	return spinnerStyle.Render("   scanning") + m.spinner.View()
@@ -240,7 +246,7 @@ func (m model) headerView() string {
 		Width(RightHandWidth).
 		Align(lipgloss.Right).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
-			m.data.uri,
+			m.data.Uri(),
 			fmt.Sprintf("%d keys", m.data.TotalKeys(context.Background())),
 		))
 
@@ -262,13 +268,13 @@ func (m model) resultsView() string {
 
 func (m *model) setViewportContent(ctx context.Context) {
 	if m.keylist.SelectedItem() != nil {
-		markdown := m.data.Fetch(ctx, m.keylist.SelectedItem().(Key))
-		renderer := panicOnError(glamour.NewTermRenderer(
+		markdown := m.data.Fetch(ctx, m.keylist.SelectedItem().(Key).Key)
+		renderer := util.PanicOnError(glamour.NewTermRenderer(
 			glamour.WithAutoStyle(),
 			glamour.WithWordWrap(m.viewport.Width),
 		))
 
-		str := panicOnError(renderer.Render(markdown))
+		str := util.PanicOnError(renderer.Render(markdown))
 		m.viewport.SetContent(str)
 	}
 }
@@ -290,31 +296,28 @@ func (m model) View() string {
 
 // Key represents a Redis key, and implements [list.Item]
 type Key struct {
-	name     string        // the key name
-	datatype string        // Hash, String, Set, etc; https://redis.io/commands/type/
-	size     uint64        // in bytes
-	ttl      time.Duration // or -1, if no TTL. Note, in some rare cases, this can be -2.
+	data.Key
 }
 
 func (k Key) String() string {
-	return fmt.Sprintf("%s (%s)", k.name, k.datatype)
+	return fmt.Sprintf("%s (%s)", k.Name, k.Datatype)
 }
 
 func (k Key) TTLString() string {
-	if k.ttl == -1 {
+	if k.TTL == -1 {
 		return "∞"
 	}
-	return humanize.RelTime(time.Now(), time.Now().Add(k.ttl), "", "")
+	return humanize.RelTime(time.Now(), time.Now().Add(k.TTL), "", "")
 }
 
 func (k Key) SizeString() string {
-	return humanize.Bytes(k.size)
+	return humanize.Bytes(k.Size)
 }
 
 func (k Key) Title() string {
-	typeLabel := lipgloss.NewStyle().Background(ColorForKeyType(k.datatype)).Render(k.datatype)
+	typeLabel := lipgloss.NewStyle().Background(ColorForKeyType(k.Datatype)).Render(k.Datatype)
 	return lipgloss.NewStyle().Width(TypeLabelWidth).Render(typeLabel) +
-		lipgloss.NewStyle().Width(KeyNameWidth).Inline(true).Render(k.name) +
+		lipgloss.NewStyle().Width(KeyNameWidth).Inline(true).Render(k.Name) +
 		lipgloss.NewStyle().Width(TTLWidth).Render(k.TTLString()) +
 		lipgloss.NewStyle().Width(SizeWidth).Render(k.SizeString())
 }
@@ -324,10 +327,60 @@ func (k Key) Description() string {
 }
 
 func (k Key) FilterValue() string {
-	return k.name
+	return k.Name
 }
 
-////////////////////////////////////////////
+// //////////////////////////////////////////
+// style-specific vars and funcs
+// //////////////////////////////////////////
+
+var (
+	TypeLabelWidth = 10 // max is "string"
+	KeyNameWidth   = 20 // assume the max to start, and adjust as keys are found
+	TTLWidth       = 12 // max is "101 minutes"
+	SizeWidth      = 7
+	RightHandWidth = 30
+)
+
+var (
+	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
+	cursorStyle  = focusedStyle.Copy()
+	docStyle     = lipgloss.NewStyle().Margin(1, 2)
+	headerStyle  = lipgloss.NewStyle().
+			Margin(0, 1, 1).
+			Foreground(lipgloss.Color("#c9510c")).
+			Bold(true).
+			Border(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("#0a2b3b"))
+	viewportStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("#6e5494")).
+			PaddingRight(2)
+	spinnerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#00ff00"))
+)
+
+func LeftHandWidth() int {
+	return TypeLabelWidth + KeyNameWidth + TTLWidth + SizeWidth + 3
+}
+
+func ColorForKeyType(keyType string) lipgloss.Color {
+	switch keyType {
+	case "hash":
+		return lipgloss.Color("#0000ff")
+	case "set":
+		return lipgloss.Color("#935f35")
+	case "zset":
+		return lipgloss.Color("#932069")
+	case "string":
+		return lipgloss.Color("#6123bc")
+	default:
+		return lipgloss.Color("#00ff00")
+	}
+}
+
+///////////////////////////////////////////
 
 func main() {
 	defer func() {
@@ -348,7 +401,7 @@ func main() {
 
 	if *debugFlag {
 		// all calls to fmt.Println will be written to debug.log
-		logfile = panicOnError(tea.LogToFile("debug.log", "debug"))
+		util.Logfile = util.PanicOnError(tea.LogToFile("debug.log", "debug"))
 	}
 
 	uri := flag.Arg(0)
@@ -356,7 +409,7 @@ func main() {
 		uri = "redis://localhost:6379"
 	}
 
-	d := NewData(uri, *clusterFlag)
+	d := data.NewData(uri, *clusterFlag)
 	p := tea.NewProgram(
 		NewModel(d),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
@@ -364,9 +417,9 @@ func main() {
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("could not start program: %s\n", err)
-		logfile.Close()
+		util.Logfile.Close()
 		os.Exit(1)
 	}
 
-	defer logfile.Close()
+	defer util.Logfile.Close()
 }
