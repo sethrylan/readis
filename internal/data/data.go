@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/github/readis/internal/util"
 	"github.com/redis/go-redis/v9"
+	"github.com/sethrylan/readis/internal/util"
 )
 
 // Data is a wrapper around redis clients; standalone or cluster.

@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/github/readis/internal/data"
-	"github.com/github/readis/internal/ui"
-	"github.com/github/readis/internal/util"
+	"github.com/sethrylan/readis/internal/data"
+	"github.com/sethrylan/readis/internal/ui"
+	"github.com/sethrylan/readis/internal/util"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"

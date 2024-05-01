@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/github/readis/internal/util"
 	"github.com/redis/go-redis/v9"
+	"github.com/sethrylan/readis/internal/util"
 )
 
 // Scan providers functions executing a redis Scan operation and receiving incremental results.

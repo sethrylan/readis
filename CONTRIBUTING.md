@@ -31,4 +31,4 @@ docker run --rm -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-
 1. On the `main` branch, make a new tag for the desired version number, by running `git tag -a vX.X.X`, where `vX.X.X` is the version number (like `v0.0.10`).
 1. When prompted for a note, write a brief description of the changes in the new version.
 1. Run `git push origin vX.X.X` to push the new tag to the remote.
-1. Once that is completed, go to https://github.com/github/readis/releases to create a new release by clicking "Draft a new release".
+1. Once that is completed, go to https://github.com/sethrylan/readis/releases to create a new release by clicking "Draft a new release".
