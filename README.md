@@ -6,12 +6,12 @@ A TUI [Redis](https://redis.io/) browser, built with [Charm](https://charm.sh/) 
 
 ## Installing
 
-Download the [latest release](https://github.com/github/readis/releases)
+Download the [latest release](https://github.com/sethrylan/readis/releases)
 
 or
 
 ```sh
-➜ go install github.com/github/readis@main
+➜ go install github.com/sethrylan/readis@main
 ```
 
 ## Using

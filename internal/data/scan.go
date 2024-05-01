@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/github/readis/internal/util"
+	"github.com/sethrylan/readis/internal/util"
 	"github.com/redis/go-redis/v9"
 )
 

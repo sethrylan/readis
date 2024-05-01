@@ -1,4 +1,4 @@
-module github.com/github/readis
+module github.com/sethrylan/readis
 
 go 1.22
 
