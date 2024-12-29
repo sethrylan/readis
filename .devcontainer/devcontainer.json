@@ -5,16 +5,6 @@
         "golang.go",
         "naumovs.color-highlight"
       ]
-    },
-    "codespaces": {
-      "repositories": {
-        "github/*": {
-          "permissions": {
-            "contents": "read",
-            "packages": "read"
-          }
-        }
-      }
     }
   }
 }
