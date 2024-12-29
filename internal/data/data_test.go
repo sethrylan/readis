@@ -41,8 +41,8 @@ func TestNewData(t *testing.T) {
 func setup(t *testing.T) (*redis.Client, *Data, testcontainers.Container) {
 	t.Helper()
 	ctx := context.Background()
-	redisContainer, _ := redisTestContainers.RunContainer(ctx,
-		testcontainers.WithImage("docker.io/redis:7.2"),
+	redisContainer, _ := redisTestContainers.Run(ctx,
+		"docker.io/redis:7.2",
 		redisTestContainers.WithLogLevel(redisTestContainers.LogLevelVerbose),
 	)
 
