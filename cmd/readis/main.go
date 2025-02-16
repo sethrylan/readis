@@ -234,14 +234,14 @@ func (m *model) spinnerView() string {
 }
 
 func (m *model) headerView() string {
-	inputBlock := headerStyle.Copy().
+	inputBlock := headerStyle.
 		Width(LeftHandWidth() - 6).
 		Align(lipgloss.Left).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
 			m.textinput.View(),
 			m.spinnerView(),
 		))
-	statusBlock := headerStyle.Copy().
+	statusBlock := headerStyle.
 		Width(RightHandWidth).
 		Align(lipgloss.Right).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
@@ -343,7 +343,7 @@ var (
 
 var (
 	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
-	cursorStyle  = focusedStyle.Copy()
+	cursorStyle  = focusedStyle
 	docStyle     = lipgloss.NewStyle().Margin(1, 2)
 	headerStyle  = lipgloss.NewStyle().
 			Margin(0, 1, 1).
