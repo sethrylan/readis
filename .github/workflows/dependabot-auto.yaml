@@ -1,4 +1,4 @@
-name: Dependabot auto-approve
+name: dependabot
 on: pull_request
 
 permissions:
@@ -6,7 +6,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  dependabot:
+  auto-approve:
     runs-on: ubuntu-latest
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'sethrylan/readis'
     steps:
