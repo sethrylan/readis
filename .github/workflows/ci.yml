@@ -13,7 +13,7 @@ jobs:
           go-version-file: go.mod
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.55.2
+          version: v1.64.5
           skip-pkg-cache: true
           install-mode: goinstall
           args: --timeout=3m
