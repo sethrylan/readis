@@ -1,4 +1,4 @@
-name: "Conventional Commits"
+name: "conventional-commits"
 
 on:
   pull_request:
@@ -16,8 +16,7 @@ permissions:
   statuses: write
 
 jobs:
-  main:
-    name: Lint PR title
+  pr-title:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
