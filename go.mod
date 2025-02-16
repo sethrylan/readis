@@ -1,6 +1,6 @@
 module github.com/sethrylan/readis
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/charmbracelet/bubbles v0.18.0
