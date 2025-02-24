@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/lipgloss v1.0.0
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.7.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.35.0
 )
