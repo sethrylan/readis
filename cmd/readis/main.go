@@ -145,7 +145,7 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
-	var ctx context.Context = context.Background()
+	var ctx = context.Background()
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -401,6 +401,9 @@ func main() {
 	if *debugFlag {
 		// all calls to fmt.Println will be written to debug.log
 		util.Logfile = util.PanicOnError(tea.LogToFile("debug.log", "debug"))
+		defer func() {
+			_ = util.Logfile.Close()
+		}()
 	}
 
 	uri := flag.Arg(0)
@@ -416,9 +419,7 @@ func main() {
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("could not start program: %s\n", err)
-		util.Logfile.Close()
 		os.Exit(1)
 	}
 
-	util.Logfile.Close()
 }
