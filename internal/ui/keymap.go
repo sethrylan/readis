@@ -1,8 +1,10 @@
+// Package ui provides user interface components.
 package ui
 
 import "github.com/charmbracelet/bubbles/key"
 
-type listKeyMap struct {
+// ListKeyMap defines key bindings for the list component.
+type ListKeyMap struct {
 	CursorUp   key.Binding
 	CursorDown key.Binding
 	PageNext   key.Binding
@@ -11,9 +13,9 @@ type listKeyMap struct {
 	GoToEnd    key.Binding
 }
 
-// These keys adjusted from keys.go, to account for fewer letter keys
-func NewListKeyMap() *listKeyMap {
-	return &listKeyMap{
+// NewListKeyMap creates a new ListKeyMap with adjusted keys for fewer letter keys.
+func NewListKeyMap() *ListKeyMap {
+	return &ListKeyMap{
 		PageNext: key.NewBinding(
 			key.WithKeys("right"),
 			key.WithHelp("→", "next"),

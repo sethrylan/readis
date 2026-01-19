@@ -1,4 +1,4 @@
-package data
+package data //nolint:testpackage // white-box testing of internal package
 
 import (
 	"context"

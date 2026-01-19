@@ -1,4 +1,4 @@
-package util
+package util //nolint:testpackage,revive // white-box testing of internal package
 
 import (
 	"testing"
@@ -17,7 +17,6 @@ func TestNormalizeUri(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.input, func(t *testing.T) {
 			t.Parallel() // marks each test case as capable of running in parallel with each other
 			t.Log(test.input)

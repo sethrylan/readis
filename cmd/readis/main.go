@@ -69,7 +69,7 @@ func (m *model) resizeViews(ctx context.Context) {
 	}
 
 	hMargin, vMargin := docStyle.GetFrameSize()
-	headerHeight := lipgloss.Height(m.headerView())
+	headerHeight := lipgloss.Height(m.headerView(ctx))
 	keylistWidth := LeftHandWidth()
 	keylistHeight := m.windowHeight - vMargin - headerHeight
 	m.keylist.SetSize(keylistWidth, keylistHeight)
@@ -90,8 +90,8 @@ func (m *model) resizeViews(ctx context.Context) {
 	m.setViewportContent(ctx)
 }
 
-func NewModel(data *data.Data) model {
-	m := model{}
+func NewModel(data *data.Data) *model {
+	m := &model{}
 
 	km := ui.NewListKeyMap()
 	m.data = data
@@ -138,12 +138,12 @@ func NewModel(data *data.Data) model {
 	return m
 }
 
-func (m model) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, m.spinner.Tick)
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmds := make([]tea.Cmd, 0, 4)
 	var cmd tea.Cmd
 	var ctx = context.Background()
 
@@ -165,7 +165,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
-			var cmd tea.Cmd
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews(ctx)
 			return m, tea.Batch(cmd)
@@ -233,7 +232,7 @@ func (m *model) spinnerView() string {
 	return spinnerStyle.Render("   scanning") + m.spinner.View()
 }
 
-func (m *model) headerView() string {
+func (m *model) headerView(ctx context.Context) string {
 	inputBlock := headerStyle.
 		Width(LeftHandWidth() - 6).
 		Align(lipgloss.Left).
@@ -246,7 +245,7 @@ func (m *model) headerView() string {
 		Align(lipgloss.Right).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
 			m.data.URI(),
-			fmt.Sprintf("%d keys", m.data.TotalKeys(context.Background())),
+			fmt.Sprintf("%d keys", m.data.TotalKeys(ctx)),
 		))
 
 	return lipgloss.NewStyle().Render(
@@ -267,7 +266,15 @@ func (m *model) resultsView() string {
 
 func (m *model) setViewportContent(ctx context.Context) {
 	if m.keylist.SelectedItem() != nil {
-		markdown := m.data.Fetch(ctx, m.keylist.SelectedItem().(Key).Key)
+		selectedKey, ok := m.keylist.SelectedItem().(Key)
+		if !ok {
+			return
+		}
+		markdown, err := m.data.Fetch(ctx, selectedKey.Key)
+		if err != nil {
+			m.viewport.SetContent(err.Error())
+			return
+		}
 		renderer := util.PanicOnError(glamour.NewTermRenderer(
 			glamour.WithAutoStyle(),
 			glamour.WithWordWrap(m.viewport.Width),
@@ -278,14 +285,14 @@ func (m *model) setViewportContent(ctx context.Context) {
 	}
 }
 
-func (m model) View() string {
+func (m *model) View() string {
 	if !m.initialized {
 		return "\n  Initializing..."
 	}
 
 	return docStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
-			m.headerView(),
+			m.headerView(context.Background()),
 			m.resultsView(),
 		),
 	)
@@ -382,6 +389,11 @@ func ColorForKeyType(keyType string) lipgloss.Color {
 ///////////////////////////////////////////
 
 func main() {
+	exitCode := run()
+	os.Exit(exitCode)
+}
+
+func run() int {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Recovered in f", r)
@@ -395,7 +407,7 @@ func main() {
 
 	if *versionFlag {
 		fmt.Printf("%s (%s, built on %s)\n", version, commit, date)
-		os.Exit(0)
+		return 0
 	}
 
 	if *debugFlag {
@@ -419,7 +431,8 @@ func main() {
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("could not start program: %s\n", err)
-		os.Exit(1)
+		return 1
 	}
 
+	return 0
 }

@@ -1,3 +1,4 @@
+// Package util provides utility functions for the application.
 package util
 
 import (
@@ -8,8 +9,10 @@ import (
 	"time"
 )
 
+// Logfile is the file used for debug logging.
 var Logfile *os.File
 
+// Debug writes debug messages to the log file if debug mode is enabled.
 func Debug(a ...string) {
 	if Logfile == nil {
 		return
@@ -23,10 +26,11 @@ func Debug(a ...string) {
 	PanicOnError(Logfile.WriteString("\n"))
 }
 
-func randFloat(min, max float64) float64 {
-	return min + rand.Float64()*(max-min)
+func randFloat(lower, upper float64) float64 {
+	return lower + rand.Float64()*(upper-lower) //nolint:gosec // not security-sensitive, used only for debug delay
 }
 
+// DebugDelay introduces an artificial delay for testing purposes.
 func DebugDelay(randomness float64) {
 	if v, ok := os.LookupEnv("DEBUG_DELAY"); ok {
 		if delay, err := strconv.Atoi(v); err == nil {
@@ -38,6 +42,7 @@ func DebugDelay(randomness float64) {
 	}
 }
 
+// PanicOnError returns the value if err is nil, otherwise panics.
 func PanicOnError[T any](v T, err error) T {
 	if err != nil {
 		panic(err)
