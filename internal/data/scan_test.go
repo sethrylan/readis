@@ -1,4 +1,4 @@
-package data
+package data //nolint:testpackage // white-box testing of internal package
 
 import (
 	"context"
@@ -60,15 +60,15 @@ func TestScanAsync(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			// t.Parallel()  // cannot run in parallel
 
-			var keys []*Key
+			keys := make([]*Key, 0, total)
 			s := NewScan("testkey:*", test.pageSize)
 			assert.False(t, s.scanning)
 
-			for i := 0; i < test.scanLoops; i++ {
+			for i := range test.scanLoops {
 				fmt.Println("starting loop", i, "keys", len(keys))
 
 				ch := d.ScanAsync(ctx, s) // start the scan
-				//time.Sleep(10 * time.Millisecond) // wait a moment for the scan to start
+				// time.Sleep(10 * time.Millisecond) // wait a moment for the scan to start
 				assert.True(t, s.scanning)
 				for key := range ch {
 					keys = append(keys, key)

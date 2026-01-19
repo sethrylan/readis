@@ -1,3 +1,4 @@
+// Package data provides Redis data access functionality.
 package data
 
 import (
@@ -5,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,6 +49,7 @@ func NewData(uri string, cluster bool) *Data {
 	}
 }
 
+// URI returns the Redis server address.
 func (d *Data) URI() string {
 	if d.cluster {
 		return d.cc.Options().Addrs[0]
@@ -54,10 +57,12 @@ func (d *Data) URI() string {
 	return d.rc.Options().Addr
 }
 
+// Close closes the Redis connection.
 func (d *Data) Close() error {
 	return d.client().Close()
 }
 
+// TotalKeys returns the total number of keys in the Redis database.
 func (d *Data) TotalKeys(ctx context.Context) int64 {
 	return d.client().DBSize(ctx).Val()
 }
@@ -70,8 +75,9 @@ func (d *Data) client() redis.UniversalClient {
 	return d.rc
 }
 
+// ScanAsync scans Redis keys asynchronously and returns results via a channel.
 func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
-	util.Debug("scan: ", s.pattern, " ", fmt.Sprintf("%d", s.pageSize))
+	util.Debug("scan: ", s.pattern, " ", strconv.Itoa(s.pageSize))
 	s.scanning = true
 	ch := make(chan *Key)
 
@@ -87,9 +93,9 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 		if strings.Contains(s.pattern, "*") {
 			if d.cluster {
 				err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
-					shardCmds, err := s.PipelinedCmds(ctx, rc)
-					if err != nil {
-						return err
+					shardCmds, shardErr := s.PipelinedCmds(ctx, rc)
+					if shardErr != nil {
+						return shardErr
 					}
 					cmds = append(cmds, shardCmds...)
 					return nil
@@ -122,9 +128,15 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 		keys := make(map[string]*Key)
 
 		for _, cmd := range cmds {
-			key := cmd.Args()[1].(string)
+			key, ok := cmd.Args()[1].(string)
+			if !ok {
+				continue
+			}
 			if key == "usage" {
-				key = cmd.Args()[2].(string)
+				key, ok = cmd.Args()[2].(string)
+				if !ok {
+					continue
+				}
 			}
 
 			if _, ok := keys[key]; !ok {
@@ -137,7 +149,10 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 			case *redis.StatusCmd:
 				keys[key].Datatype = c.Val()
 			case *redis.IntCmd:
-				keys[key].Size = uint64(c.Val())
+				val := c.Val()
+				if val >= 0 {
+					keys[key].Size = uint64(val)
+				}
 			default:
 				panic("unknown type")
 			}
@@ -152,50 +167,52 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 	return ch
 }
 
-func (d *Data) Fetch(ctx context.Context, key Key) string {
+// Fetch retrieves the value of a key from Redis and returns it as markdown.
+func (d *Data) Fetch(ctx context.Context, key Key) (string, error) {
 	c := d.client()
 
 	switch key.Datatype {
 	case "string":
 		r, err := c.Get(ctx, key.Name).Result()
 		if err == nil {
-			return fmt.Sprintf("```%s```", r)
+			return fmt.Sprintf("```%s```", r), nil
 		}
+		return "", err
 	case "list":
-		markdown := ""
+		var sb strings.Builder
 		for _, v := range c.LRange(ctx, key.Name, 0, -1).Val() {
-			markdown += fmt.Sprintf("- `%v`\n", v)
+			sb.WriteString(fmt.Sprintf("- `%v`\n", v))
 		}
-		return markdown
+		return sb.String(), nil
 	case "set":
-		markdown := ""
+		var sb strings.Builder
 		for _, v := range c.SMembers(ctx, key.Name).Val() {
-			markdown += fmt.Sprintf("- `%v`\n", v)
+			sb.WriteString(fmt.Sprintf("- `%v`\n", v))
 		}
-		return markdown
+		return sb.String(), nil
 	case "zset":
-		markdown := "| score | value |\n| --- | --- |\n"
+		var sb strings.Builder
+		sb.WriteString("| score | value |\n| --- | --- |\n")
 		for _, z := range c.ZRangeWithScores(ctx, key.Name, 0, -1).Val() {
-			markdown += fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member)
+			sb.WriteString(fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member))
 		}
-		return markdown
+		return sb.String(), nil
 	case "hash":
 		hash := c.HGetAll(ctx, key.Name).Val()
 
-		fields := make([]string, 0)
+		fields := make([]string, 0, len(hash))
 		for f := range hash {
 			fields = append(fields, f)
 		}
 		sort.Strings(fields)
 
-		markdown := "| field | value |\n| --- | --- |\n"
+		var sb strings.Builder
+		sb.WriteString("| field | value |\n| --- | --- |\n")
 		for _, f := range fields {
-			markdown += fmt.Sprintf("| %s | %s |\n", f, hash[f])
+			sb.WriteString(fmt.Sprintf("| %s | %s |\n", f, hash[f]))
 		}
-		return markdown
+		return sb.String(), nil
 	default:
-		return "Unknown data type: " + key.Datatype
+		return "Unknown data type: " + key.Datatype, nil
 	}
-
-	return "could not get value for " + key.Datatype
 }

@@ -2,7 +2,7 @@ package data
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
@@ -17,8 +17,9 @@ type Scan struct {
 	iters    map[string]*redis.ScanIterator
 }
 
+// NewScan creates a new Scan instance with the given pattern and page size.
 func NewScan(pattern string, pageSize int) *Scan {
-	util.Debug("new scan: ", pattern, fmt.Sprintf("%d", pageSize))
+	util.Debug("new scan: ", pattern, strconv.Itoa(pageSize))
 	return &Scan{
 		pageSize: pageSize,
 		pattern:  pattern,
@@ -26,14 +27,17 @@ func NewScan(pattern string, pageSize int) *Scan {
 	}
 }
 
+// Scanning returns true if a scan is currently in progress.
 func (s *Scan) Scanning() bool {
 	return s.scanning
 }
 
+// HasMore returns true if there may be more keys to scan.
 func (s *Scan) HasMore() bool {
 	return strings.Contains(s.pattern, "*")
 }
 
+// PipelinedCmds executes pipelined commands to fetch key metadata.
 func (s *Scan) PipelinedCmds(ctx context.Context, rc *redis.Client) ([]redis.Cmder, error) {
 	var numFound int
 
