@@ -40,8 +40,19 @@ type model struct {
 	keylist     list.Model
 	viewport    viewport.Model
 	initialized bool
+	totalKeys   int64
 
 	windowHeight, windowWidth int
+}
+
+type totalKeysMsg int64
+
+type refreshTotalKeysMsg struct{}
+
+func tickTotalKeys() tea.Cmd {
+	return tea.Tick(5*time.Second, func(time.Time) tea.Msg {
+		return refreshTotalKeysMsg{}
+	})
 }
 
 // resizeViews should be called anytime the panes need to be updated.
@@ -60,7 +71,7 @@ type model struct {
 // 3) we change pages (same reason as 2)
 //
 // So we keep track of the longest key name and the window size for resizing.
-func (m *model) resizeViews(ctx context.Context) {
+func (m *model) resizeViews() {
 	// Find the longest key name, we'll use that to resize the left hand pane
 	for _, k := range m.keylist.VisibleItems() {
 		if k, ok := k.(Key); ok {
@@ -69,7 +80,7 @@ func (m *model) resizeViews(ctx context.Context) {
 	}
 
 	hMargin, vMargin := docStyle.GetFrameSize()
-	headerHeight := lipgloss.Height(m.headerView(ctx))
+	headerHeight := lipgloss.Height(m.headerView())
 	keylistWidth := LeftHandWidth()
 	keylistHeight := m.windowHeight - vMargin - headerHeight
 	m.keylist.SetSize(keylistWidth, keylistHeight)
@@ -87,7 +98,7 @@ func (m *model) resizeViews(ctx context.Context) {
 	m.viewport = viewport.New(viewportWidth, viewportHeight)
 	m.viewport.Style = viewportStyle.Width(viewportWidth)
 	m.viewport.YPosition = headerHeight
-	m.setViewportContent(ctx)
+	m.setViewportContent(context.Background())
 }
 
 func NewModel(data *data.Data) *model {
@@ -139,7 +150,11 @@ func NewModel(data *data.Data) *model {
 }
 
 func (m *model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, m.spinner.Tick)
+	return tea.Batch(textinput.Blink, m.spinner.Tick, m.refreshTotalKeys, tickTotalKeys())
+}
+
+func (m *model) refreshTotalKeys() tea.Msg {
+	return totalKeysMsg(m.data.TotalKeys(context.Background()))
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -148,6 +163,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var ctx = context.Background()
 
 	switch msg := msg.(type) {
+	case totalKeysMsg:
+		m.totalKeys = int64(msg)
+		return m, nil
+	case refreshTotalKeysMsg:
+		return m, tea.Batch(m.refreshTotalKeys, tickTotalKeys())
 	case tea.KeyMsg:
 		util.Debug("key pressed: ", msg.String())
 		switch msg.String() {
@@ -166,7 +186,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
 			m.keylist, cmd = m.keylist.Update(msg)
-			m.resizeViews(ctx)
+			m.resizeViews()
 			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
 			// If on the last page and the current scan is complete,
@@ -176,13 +196,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.scanCh = m.data.ScanAsync(ctx, m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
-			m.resizeViews(ctx)
+			m.resizeViews()
 			return m, tea.Batch(append(cmds, cmd)...)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
 		m.windowHeight, m.windowWidth = msg.Height, msg.Width
-		m.resizeViews(ctx)
+		m.resizeViews()
 		m.initialized = true
 	case error:
 		// handle errors like any other message
@@ -232,7 +252,7 @@ func (m *model) spinnerView() string {
 	return spinnerStyle.Render("   scanning") + m.spinner.View()
 }
 
-func (m *model) headerView(ctx context.Context) string {
+func (m *model) headerView() string {
 	inputBlock := headerStyle.
 		Width(LeftHandWidth() - 6).
 		Align(lipgloss.Left).
@@ -245,7 +265,7 @@ func (m *model) headerView(ctx context.Context) string {
 		Align(lipgloss.Right).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
 			m.data.URI(),
-			fmt.Sprintf("%d keys", m.data.TotalKeys(ctx)),
+			fmt.Sprintf("%d keys", m.totalKeys),
 		))
 
 	return lipgloss.NewStyle().Render(
@@ -275,12 +295,20 @@ func (m *model) setViewportContent(ctx context.Context) {
 			m.viewport.SetContent(err.Error())
 			return
 		}
-		renderer := util.PanicOnError(glamour.NewTermRenderer(
+		renderer, err := glamour.NewTermRenderer(
 			glamour.WithAutoStyle(),
 			glamour.WithWordWrap(m.viewport.Width),
-		))
+		)
+		if err != nil {
+			m.viewport.SetContent(err.Error())
+			return
+		}
 
-		str := util.PanicOnError(renderer.Render(markdown))
+		str, err := renderer.Render(markdown)
+		if err != nil {
+			m.viewport.SetContent(err.Error())
+			return
+		}
 		m.viewport.SetContent(str)
 	}
 }
@@ -292,7 +320,7 @@ func (m *model) View() string {
 
 	return docStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
-			m.headerView(context.Background()),
+			m.headerView(),
 			m.resultsView(),
 		),
 	)
