@@ -31,6 +31,9 @@ var (
 )
 
 type model struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	data    *data.Data
 	scan    *data.Scan
 	scanCh  <-chan *data.Key // receive-only channel for scan results
@@ -98,11 +101,14 @@ func (m *model) resizeViews() {
 	m.viewport = viewport.New(viewportWidth, viewportHeight)
 	m.viewport.Style = viewportStyle.Width(viewportWidth)
 	m.viewport.YPosition = headerHeight
-	m.setViewportContent(context.Background())
+	m.setViewportContent(m.ctx)
 }
 
-func NewModel(data *data.Data) *model {
-	m := &model{}
+func NewModel(ctx context.Context, cancel context.CancelFunc, data *data.Data) *model {
+	m := &model{
+		ctx:    ctx,
+		cancel: cancel,
+	}
 
 	km := ui.NewListKeyMap()
 	m.data = data
@@ -154,13 +160,12 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) refreshTotalKeys() tea.Msg {
-	return totalKeysMsg(m.data.TotalKeys(context.Background()))
+	return totalKeysMsg(m.data.TotalKeys(m.ctx))
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0, 4)
 	var cmd tea.Cmd
-	var ctx = context.Background()
 
 	switch msg := msg.(type) {
 	case totalKeysMsg:
@@ -172,6 +177,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		util.Debug("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
+			m.cancel()
 			err := m.data.Close()
 			if err != nil {
 				fmt.Println("error closing connection: ", err)
@@ -181,7 +187,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist.SetItems([]list.Item{})                    // clear items
 			pageSize := m.keylist.Paginator.ItemsOnPage(1000)    // estimate the page size
 			m.scan = data.NewScan(m.textinput.Value(), pageSize) // initialize scan
-			m.scanCh = m.data.ScanAsync(ctx, m.scan)             // start scan
+			m.scanCh = m.data.ScanAsync(m.ctx, m.scan)             // start scan
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
@@ -193,7 +199,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// then we can scan for the next page of results.
 			// And ctrl+t? That's just an undocumented shortcut.
 			if m.keylist.Paginator.OnLastPage() && m.scan != nil && !m.scan.Scanning() && m.scan.HasMore() {
-				m.scanCh = m.data.ScanAsync(ctx, m.scan)
+				m.scanCh = m.data.ScanAsync(m.ctx, m.scan)
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews()
@@ -214,7 +220,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.viewport.VisibleLineCount() == 0 {
 		// On new searches, update the viewport with the first list item.
-		m.setViewportContent(ctx)
+		m.setViewportContent(m.ctx)
 	}
 
 	// Handle any other character input as pattern input
@@ -452,8 +458,9 @@ func run() int {
 	}
 
 	d := data.NewData(uri, *clusterFlag)
+	ctx, cancel := context.WithCancel(context.Background())
 	p := tea.NewProgram(
-		NewModel(d),
+		NewModel(ctx, cancel, d),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
 	)
 
