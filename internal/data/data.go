@@ -130,10 +130,13 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 			return
 		}
 		if err != nil {
-			ch <- &Key{
+			select {
+			case ch <- &Key{
 				Name:     err.Error(),
 				Datatype: "error",
 				TTL:      -1,
+			}:
+			case <-ctx.Done():
 			}
 			return
 		}
@@ -173,7 +176,11 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 
 		for _, key := range keys {
 			util.DebugDelay(0.50) // inject delay for testing
-			ch <- key             // Send the key to the channel
+			select {
+			case ch <- key:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
