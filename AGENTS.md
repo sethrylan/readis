@@ -29,12 +29,7 @@ Tests use [testcontainers-go](https://github.com/testcontainers/testcontainers-g
 golangci-lint run
 ```
 
-The project uses an extensive `golangci-lint` configuration (`.golangci.yml`) with nearly all linters enabled. Key points:
-
-- Linters are set to `default: all` with specific noisy linters disabled.
-- Formatters: `gofmt` and `goimports` are enforced.
-- Test files have relaxed rules for `gosec`, `errcheck`, and dot-imports.
-- Run `go mod tidy` before submitting changes.
+Linting is configured in `.golangci.yml`. Linters are set to `default: all` with specific linters disabled. Test files have relaxed rules for `gosec`, `errcheck`, and dot-imports. Run `go mod tidy` before submitting changes.
 
 ## Code Style and Conventions
 
