@@ -170,7 +170,8 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 					keys[key].Size = uint64(val) // #nosec G115 -- val is checked to be >= 0
 				}
 			default:
-				panic("unknown type")
+				util.Debug("unknown command type: ", fmt.Sprintf("%T", cmd))
+				continue
 			}
 		}
 
