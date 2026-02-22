@@ -78,13 +78,13 @@ func (d *Data) client() redis.UniversalClient {
 // ScanAsync scans Redis keys asynchronously and returns results via a channel.
 func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 	util.Debug("scan: ", s.pattern, " ", strconv.Itoa(s.pageSize))
-	s.scanning = true
+	s.scanning.Store(true)
 	ch := make(chan *Key)
 
 	go func() {
 		defer func() {
 			// Close the channel to signal that we're done
-			s.scanning = false
+			s.scanning.Store(false)
 			close(ch)
 		}()
 		var cmds []redis.Cmder
