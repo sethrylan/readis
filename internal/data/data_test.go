@@ -8,52 +8,46 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
 	redisTestContainers "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 func TestNewData(t *testing.T) {
-	ctx := context.Background()
-	c, d, redisContainer := setup(t)
-
-	defer func() {
-		err := c.Close()
-		if err != nil {
-			panic(err)
-		}
-		err = redisContainer.Terminate(ctx)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	c, d := setup(t)
 
 	// populate test data
 	for i := range 1000 {
-		_, err := c.Set(ctx, "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
+		_, err := c.Set(t.Context(), "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, int64(1000), d.TotalKeys(ctx))
+	assert.Equal(t, int64(1000), d.TotalKeys(t.Context()))
 	err := d.Close()
 	require.NoError(t, err)
 }
 
-func setup(t *testing.T) (*redis.Client, *Data, testcontainers.Container) {
+func setup(t *testing.T) (*redis.Client, *Data) {
 	t.Helper()
-	ctx := context.Background()
-	redisContainer, _ := redisTestContainers.Run(ctx,
+	redisContainer, err := redisTestContainers.Run(t.Context(),
 		"docker.io/redis:7.2",
 		redisTestContainers.WithLogLevel(redisTestContainers.LogLevelVerbose),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, redisContainer.Terminate(context.Background())) //nolint:usetesting // t.Context() is canceled before t.Cleanup runs
+	})
 
-	connStr, err := redisContainer.ConnectionString(ctx)
+	connStr, err := redisContainer.ConnectionString(t.Context())
 	require.NoError(t, err)
 	opts, err := redis.ParseURL(connStr)
 	require.NoError(t, err)
 
 	c := redis.NewClient(opts)
+	t.Cleanup(func() {
+		require.NoError(t, c.Close())
+	})
+
 	d, err := NewData(connStr, false)
 	require.NoError(t, err)
 
-	return c, d, redisContainer
+	return c, d
 }
