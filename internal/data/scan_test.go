@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestScanAsync(t *testing.T) {
-	c, d := setup(t)
+	c, d := setupTest(t)
 
 	// populate test data
 	total := 1000
@@ -71,7 +72,40 @@ func TestScanAsync(t *testing.T) {
 			assert.False(t, s.scanning.Load())
 		})
 	}
+}
 
-	err := d.Close()
-	require.NoError(t, err)
+func TestScanAsyncSingleKey(t *testing.T) {
+	c, d := setupTest(t)
+	ctx := t.Context()
+
+	require.NoError(t, c.Set(ctx, "exact-key", "value", 5*time.Minute).Err())
+
+	s := NewScan("exact-key", 10)
+	ch := d.ScanAsync(ctx, s)
+
+	keys := make([]*Key, 0, 1)
+	for key := range ch {
+		keys = append(keys, key)
+	}
+
+	require.Len(t, keys, 1)
+	assert.Equal(t, "exact-key", keys[0].Name)
+	assert.Equal(t, "string", keys[0].Datatype)
+	assert.Positive(t, keys[0].Size)
+	assert.Greater(t, keys[0].TTL, time.Duration(0))
+}
+
+func TestScanAsyncNonexistent(t *testing.T) {
+	_, d := setupTest(t)
+	ctx := t.Context()
+
+	s := NewScan("nonexistent-key", 10)
+	ch := d.ScanAsync(ctx, s)
+
+	keys := make([]*Key, 0, 1)
+	for key := range ch {
+		keys = append(keys, key)
+	}
+
+	assert.Empty(t, keys)
 }
