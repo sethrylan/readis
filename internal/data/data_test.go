@@ -15,7 +15,7 @@ func TestNewData(t *testing.T) {
 	ctx := context.Background()
 
 	for i := range 1000 {
-		_, err := c.Set(ctx, "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
+		_, err := c.Set(t.Context(), "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
 		require.NoError(t, err)
 	}
 
