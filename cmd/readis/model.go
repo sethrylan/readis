@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"unicode"
 
 	"github.com/sethrylan/readis/internal/data"
 	"github.com/sethrylan/readis/internal/ui"
@@ -105,7 +106,10 @@ func newModel(d *data.Data) *model {
 	m.data = d
 
 	m.spinner = spinner.New(
-		spinner.WithSpinner(spinner.Ellipsis),
+		spinner.WithSpinner(spinner.Spinner{
+			Frames: []string{"   scanning", "   scanning.", "   scanning..", "   scanning..."},
+			FPS:    time.Second / 3, //nolint:mnd
+		}),
 		spinner.WithStyle(spinnerStyle),
 	)
 
@@ -227,9 +231,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setViewportContent(appCtx)
 	}
 
-	// Handle any other character input as pattern input
-	m.textinput, cmd = m.textinput.Update(msg)
-	cmds = append(cmds, cmd)
+	// Only pass user input to the textinput; filter terminal response garbage.
+	// Terminal color query responses (OSC sequences) can leak into the input
+	// stream as KeyRunes with Alt+non-letter or as multi-rune batches.
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if isTextInput(keyMsg) {
+			m.textinput, cmd = m.textinput.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+	} else {
+		m.textinput, cmd = m.textinput.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
 	// Tick the spinner
 	m.spinner, cmd = m.spinner.Update(msg)
@@ -259,7 +272,24 @@ func (m *model) spinnerView() string {
 	if m.scan == nil || !m.scan.Scanning() {
 		return " "
 	}
-	return spinnerStyle.Render("   scanning") + m.spinner.View()
+	return m.spinner.View()
+}
+
+// isTextInput returns true if the key message is legitimate user input rather
+// than terminal response garbage. Terminal OSC color responses leak into the
+// input stream as KeyRunes with Alt+non-letter (from the ESC] / ESC\ framing)
+// or as multi-rune batches (the "rgb:RRRR/GGGG/BBBB" payload).
+func isTextInput(msg tea.KeyMsg) bool {
+	if msg.Type != tea.KeyRunes {
+		return true
+	}
+	if msg.Alt && len(msg.Runes) == 1 && !unicode.IsLetter(msg.Runes[0]) {
+		return false
+	}
+	if !msg.Alt && len(msg.Runes) > 1 {
+		return false
+	}
+	return true
 }
 
 func (m *model) headerView() string {
