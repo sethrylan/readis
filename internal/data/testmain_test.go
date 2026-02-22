@@ -47,7 +47,7 @@ func setupTest(t *testing.T) (*redis.Client, *Data) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = c.FlushDB(t.Context()).Err()
+		_ = c.FlushDB(context.Background()).Err() //nolint:usetesting // t.Context() is canceled before t.Cleanup runs
 		_ = c.Close()
 		_ = d.Close()
 	})
