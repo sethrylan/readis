@@ -32,22 +32,31 @@ type Key struct {
 }
 
 // NewData creates a new Data object for interacting with Redis.
-func NewData(uri string, cluster bool) *Data {
-	uri = util.NormalizeURI(uri)
+func NewData(uri string, cluster bool) (*Data, error) {
+	uri, err := util.NormalizeURI(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URI: %w", err)
+	}
 
 	if cluster {
-		options := util.PanicOnError(redis.ParseClusterURL(uri))
+		options, err := redis.ParseClusterURL(uri)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cluster URL: %w", err)
+		}
 		return &Data{
 			cluster: true,
 			cc:      redis.NewClusterClient(options),
-		}
+		}, nil
 	}
 
-	options := util.PanicOnError(redis.ParseURL(uri))
+	options, err := redis.ParseURL(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
 	return &Data{
 		cluster: false,
 		rc:      redis.NewClient(options),
-	}
+	}, nil
 }
 
 // URI returns the Redis server address.

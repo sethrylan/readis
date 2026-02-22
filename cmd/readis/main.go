@@ -275,12 +275,20 @@ func (m *model) setViewportContent(ctx context.Context) {
 			m.viewport.SetContent(err.Error())
 			return
 		}
-		renderer := util.PanicOnError(glamour.NewTermRenderer(
+		renderer, err := glamour.NewTermRenderer(
 			glamour.WithAutoStyle(),
 			glamour.WithWordWrap(m.viewport.Width),
-		))
+		)
+		if err != nil {
+			m.viewport.SetContent(err.Error())
+			return
+		}
 
-		str := util.PanicOnError(renderer.Render(markdown))
+		str, err := renderer.Render(markdown)
+		if err != nil {
+			m.viewport.SetContent(err.Error())
+			return
+		}
 		m.viewport.SetContent(str)
 	}
 }
@@ -423,7 +431,11 @@ func run() int {
 		uri = "redis://localhost:6379"
 	}
 
-	d := data.NewData(uri, *clusterFlag)
+	d, err := data.NewData(uri, *clusterFlag)
+	if err != nil {
+		fmt.Printf("invalid redis URI: %s\n", err)
+		return 1
+	}
 	p := tea.NewProgram(
 		NewModel(d),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
