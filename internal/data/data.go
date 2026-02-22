@@ -39,13 +39,13 @@ func NewData(uri string, cluster bool) (*Data, error) {
 	}
 
 	if cluster {
-		options, err := redis.ParseClusterURL(uri)
-		if err != nil {
-			return nil, fmt.Errorf("invalid cluster URL: %w", err)
+		clusterOpts, clusterErr := redis.ParseClusterURL(uri)
+		if clusterErr != nil {
+			return nil, fmt.Errorf("invalid cluster URL: %w", clusterErr)
 		}
 		return &Data{
 			cluster: true,
-			cc:      redis.NewClusterClient(options),
+			cc:      redis.NewClusterClient(clusterOpts),
 		}, nil
 	}
 
