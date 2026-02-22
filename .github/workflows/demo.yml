@@ -44,13 +44,9 @@ jobs:
       - name: Install VHS
         if: steps.check.outputs.skip != 'true'
         run: |
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-          sudo apt-get update && sudo apt-get install -y vhs ffmpeg
-          curl -fsSL -o ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64
-          sudo install ttyd /usr/local/bin/ttyd
-          rm ttyd
+          sudo apt update
+          sudo apt install -y ffmpeg ttyd
+          go install github.com/charmbracelet/vhs@5262b81b590d3908a9e2d63cf06603ec0d0ae78e
 
       - name: Build readis
         if: steps.check.outputs.skip != 'true'
@@ -82,6 +78,7 @@ jobs:
         env:
           CLICOLOR_FORCE: "1"
           COLORTERM: truecolor
+          CI: ""
         run: |
           vhs docs/demo.tape
           mv demo.gif docs/demo.gif
