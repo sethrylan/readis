@@ -151,7 +151,7 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 			case *redis.IntCmd:
 				val := c.Val()
 				if val >= 0 {
-					keys[key].Size = uint64(val)
+					keys[key].Size = uint64(val) // #nosec G115 -- val is checked to be >= 0
 				}
 			default:
 				panic("unknown type")
@@ -181,20 +181,20 @@ func (d *Data) Fetch(ctx context.Context, key Key) (string, error) {
 	case "list":
 		var sb strings.Builder
 		for _, v := range c.LRange(ctx, key.Name, 0, -1).Val() {
-			sb.WriteString(fmt.Sprintf("- `%v`\n", v))
+			fmt.Fprintf(&sb, "- `%v`\n", v)
 		}
 		return sb.String(), nil
 	case "set":
 		var sb strings.Builder
 		for _, v := range c.SMembers(ctx, key.Name).Val() {
-			sb.WriteString(fmt.Sprintf("- `%v`\n", v))
+			fmt.Fprintf(&sb, "- `%v`\n", v)
 		}
 		return sb.String(), nil
 	case "zset":
 		var sb strings.Builder
 		sb.WriteString("| score | value |\n| --- | --- |\n")
 		for _, z := range c.ZRangeWithScores(ctx, key.Name, 0, -1).Val() {
-			sb.WriteString(fmt.Sprintf("| %f | `%v` |\n", z.Score, z.Member))
+			fmt.Fprintf(&sb, "| %f | `%v` |\n", z.Score, z.Member)
 		}
 		return sb.String(), nil
 	case "hash":
@@ -209,7 +209,7 @@ func (d *Data) Fetch(ctx context.Context, key Key) (string, error) {
 		var sb strings.Builder
 		sb.WriteString("| field | value |\n| --- | --- |\n")
 		for _, f := range fields {
-			sb.WriteString(fmt.Sprintf("| %s | %s |\n", f, hash[f]))
+			fmt.Fprintf(&sb, "| %s | %s |\n", f, hash[f])
 		}
 		return sb.String(), nil
 	default:
