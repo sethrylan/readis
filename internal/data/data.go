@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -92,7 +93,10 @@ func (d *Data) ScanAsync(ctx context.Context, s *Scan) <-chan *Key {
 
 		if strings.Contains(s.pattern, "*") {
 			if d.cluster {
+				var mu sync.Mutex
 				err = d.cc.ForEachMaster(ctx, func(ctx context.Context, rc *redis.Client) error {
+					mu.Lock()
+					defer mu.Unlock()
 					shardCmds, shardErr := s.PipelinedCmds(ctx, rc)
 					if shardErr != nil {
 						return shardErr
