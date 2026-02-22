@@ -79,6 +79,8 @@ jobs:
 
       - name: Generate demo GIF
         if: steps.check.outputs.skip != 'true'
+        env:
+          COLORTERM: truecolor
         run: |
           vhs docs/demo.tape
           mv demo.gif docs/demo.gif
