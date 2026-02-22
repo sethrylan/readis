@@ -36,6 +36,13 @@ Linting is configured in `.golangci.yml`. Linters are set to `default: all` with
 - Follow standard Go conventions and idioms.
 - Dot imports are allowed in test files (for testify).
 - US English spelling is enforced by the `misspell` linter.
+- Commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification (e.g., `feat: add feature`, `fix: resolve bug`).
+
+### Testing Conventions
+
+- Use `t.Context()` instead of `context.Background()` or `context.TODO()` to obtain a context in tests. This context is automatically cancelled when the test completes.
+- Use `t.Setenv()` instead of `os.Setenv()` to set environment variables in tests. This automatically restores the original value when the test completes.
+- Use `t.Cleanup()` to register cleanup functions instead of `defer` when the cleanup should run after the test and all its subtests complete.
 
 ## CI/CD
 
