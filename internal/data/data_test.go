@@ -1,7 +1,6 @@
 package data //nolint:testpackage // white-box testing of internal package
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
@@ -12,10 +11,10 @@ import (
 
 func TestNewData(t *testing.T) {
 	c, d := setupTest(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for i := range 1000 {
-		_, err := c.Set(t.Context(), "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
+		_, err := c.Set(ctx, "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
 		require.NoError(t, err)
 	}
 
@@ -46,7 +45,7 @@ func TestNewDataErrors(t *testing.T) {
 
 func TestFetch(t *testing.T) {
 	c, d := setupTest(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("string", func(t *testing.T) {
 		require.NoError(t, c.Set(ctx, "str-key", "hello", 0).Err())

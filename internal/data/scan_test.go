@@ -1,7 +1,6 @@
 package data //nolint:testpackage // white-box testing of internal package
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -77,7 +76,7 @@ func TestScanAsync(t *testing.T) {
 
 func TestScanAsyncSingleKey(t *testing.T) {
 	c, d := setupTest(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.NoError(t, c.Set(ctx, "exact-key", "value", 5*time.Minute).Err())
 
@@ -98,7 +97,7 @@ func TestScanAsyncSingleKey(t *testing.T) {
 
 func TestScanAsyncNonexistent(t *testing.T) {
 	_, d := setupTest(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	s := NewScan("nonexistent-key", 10)
 	ch := d.ScanAsync(ctx, s)

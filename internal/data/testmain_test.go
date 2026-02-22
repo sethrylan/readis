@@ -47,7 +47,7 @@ func setupTest(t *testing.T) (*redis.Client, *Data) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = c.FlushDB(context.Background()).Err()
+		_ = c.FlushDB(t.Context()).Err()
 		_ = c.Close()
 		_ = d.Close()
 	})
