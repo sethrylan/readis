@@ -1,53 +1,102 @@
 package data //nolint:testpackage // white-box testing of internal package
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	redisTestContainers "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
 func TestNewData(t *testing.T) {
-	c, d := setup(t)
+	c, d := setupTest(t)
+	ctx := t.Context()
 
-	// populate test data
 	for i := range 1000 {
-		_, err := c.Set(t.Context(), "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
+		_, err := c.Set(ctx, "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, int64(1000), d.TotalKeys(t.Context()))
-	err := d.Close()
-	require.NoError(t, err)
+	assert.Equal(t, int64(1000), d.TotalKeys(ctx))
 }
 
-func setup(t *testing.T) (*redis.Client, *Data) {
-	t.Helper()
-	redisContainer, err := redisTestContainers.Run(t.Context(),
-		"docker.io/redis:7.2",
-		redisTestContainers.WithLogLevel(redisTestContainers.LogLevelVerbose),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, redisContainer.Terminate(context.Background())) //nolint:usetesting // t.Context() is canceled before t.Cleanup runs
+func TestNewDataErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		uri     string
+		cluster bool
+	}{
+		{name: "empty URI", uri: "", cluster: false},
+		{name: "invalid scheme", uri: "http://localhost:6379", cluster: false},
+		{name: "invalid cluster URI", uri: "http://localhost:6379", cluster: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := NewData(tt.uri, tt.cluster)
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestFetch(t *testing.T) {
+	c, d := setupTest(t)
+	ctx := t.Context()
+
+	t.Run("string", func(t *testing.T) {
+		require.NoError(t, c.Set(ctx, "str-key", "hello", 0).Err())
+
+		result, err := d.Fetch(ctx, Key{Name: "str-key", Datatype: "string"})
+		require.NoError(t, err)
+		assert.Equal(t, "```hello```", result)
 	})
 
-	connStr, err := redisContainer.ConnectionString(t.Context())
-	require.NoError(t, err)
-	opts, err := redis.ParseURL(connStr)
-	require.NoError(t, err)
+	t.Run("list", func(t *testing.T) {
+		require.NoError(t, c.RPush(ctx, "list-key", "a", "b", "c").Err())
 
-	c := redis.NewClient(opts)
-	t.Cleanup(func() {
-		require.NoError(t, c.Close())
+		result, err := d.Fetch(ctx, Key{Name: "list-key", Datatype: "list"})
+		require.NoError(t, err)
+		assert.Equal(t, "- `a`\n- `b`\n- `c`\n", result)
 	})
 
-	d, err := NewData(connStr, false)
-	require.NoError(t, err)
+	t.Run("set", func(t *testing.T) {
+		require.NoError(t, c.SAdd(ctx, "set-key", "x", "y").Err())
 
-	return c, d
+		result, err := d.Fetch(ctx, Key{Name: "set-key", Datatype: "set"})
+		require.NoError(t, err)
+		assert.Contains(t, result, "- `x`\n")
+		assert.Contains(t, result, "- `y`\n")
+	})
+
+	t.Run("zset", func(t *testing.T) {
+		require.NoError(t, c.ZAdd(ctx, "zset-key",
+			redis.Z{Score: 1.0, Member: "a"},
+			redis.Z{Score: 2.5, Member: "b"},
+		).Err())
+
+		result, err := d.Fetch(ctx, Key{Name: "zset-key", Datatype: "zset"})
+		require.NoError(t, err)
+		assert.Contains(t, result, "| score | value |")
+		assert.Contains(t, result, "| 1.000000 | `a` |")
+		assert.Contains(t, result, "| 2.500000 | `b` |")
+	})
+
+	t.Run("hash", func(t *testing.T) {
+		require.NoError(t, c.HSet(ctx, "hash-key", "beta", "2", "alpha", "1").Err())
+
+		result, err := d.Fetch(ctx, Key{Name: "hash-key", Datatype: "hash"})
+		require.NoError(t, err)
+		expected := "| field | value |\n| --- | --- |\n| alpha | 1 |\n| beta | 2 |\n"
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("unknown type", func(t *testing.T) {
+		result, err := d.Fetch(ctx, Key{Name: "any-key", Datatype: "unknown"})
+		require.NoError(t, err)
+		assert.Equal(t, "Unknown data type: unknown", result)
+	})
 }
