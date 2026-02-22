@@ -52,7 +52,8 @@ func setup(t *testing.T) (*redis.Client, *Data, testcontainers.Container) {
 	require.NoError(t, err)
 
 	c := redis.NewClient(opts)
-	d := NewData(connStr, false)
+	d, err := NewData(connStr, false)
+	require.NoError(t, err)
 
 	return c, d, redisContainer
 }
