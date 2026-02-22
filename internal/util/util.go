@@ -1,5 +1,5 @@
 // Package util provides utility functions for the application.
-package util //nolint:revive // package name is intentional
+package util
 
 import (
 	"math/rand"

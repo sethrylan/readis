@@ -1,4 +1,4 @@
-package util //nolint:testpackage // white-box testing of internal package
+package util //nolint:testpackage,revive // white-box testing of internal package
 
 import (
 	"testing"
