@@ -27,10 +27,11 @@ import (
 var appCtx, appCancel = context.WithCancel(context.Background()) //nolint:gochecknoglobals
 
 type model struct {
-	data    *data.Data
-	scan    *data.Scan
-	scanCh  <-chan *data.Key // receive-only channel for scan results
-	spinner spinner.Model
+	data       *data.Data
+	scan       *data.Scan
+	scanCh     <-chan *data.Key   // receive-only channel for scan results
+	cancelScan context.CancelFunc // cancels the in-flight scan goroutine
+	spinner    spinner.Model
 
 	textinput   textinput.Model
 	keylist     list.Model
@@ -149,6 +150,16 @@ func (m *model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, m.spinner.Tick, m.refreshTotalKeys, tickTotalKeys())
 }
 
+// startScan cancels any in-flight scan and starts a new one with a fresh context.
+func (m *model) startScan() {
+	if m.cancelScan != nil {
+		m.cancelScan()
+	}
+	var scanCtx context.Context
+	scanCtx, m.cancelScan = context.WithCancel(appCtx)
+	m.scanCh = m.data.ScanAsync(scanCtx, m.scan)
+}
+
 func (m *model) refreshTotalKeys() tea.Msg {
 	return totalKeysMsg(m.data.TotalKeys(appCtx))
 }
@@ -167,6 +178,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		util.Debug("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
+			if m.cancelScan != nil {
+				m.cancelScan()
+			}
 			appCancel()
 			err := m.data.Close()
 			if err != nil {
@@ -177,7 +191,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.keylist.SetItems([]list.Item{})                    // clear items
 			pageSize := m.keylist.Paginator.ItemsOnPage(1000)    // estimate the page size
 			m.scan = data.NewScan(m.textinput.Value(), pageSize) // initialize scan
-			m.scanCh = m.data.ScanAsync(appCtx, m.scan)          // start scan
+			m.startScan()                                        // cancel previous scan and start new one
 			m.keylist, cmd = m.keylist.Update(msg)
 			return m, tea.Batch(append(cmds, cmd)...)
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
@@ -189,7 +203,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// then we can scan for the next page of results.
 			// And ctrl+t? That's just an undocumented shortcut.
 			if m.keylist.Paginator.OnLastPage() && m.scan != nil && !m.scan.Scanning() && m.scan.HasMore() {
-				m.scanCh = m.data.ScanAsync(appCtx, m.scan)
+				m.startScan()
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews()
