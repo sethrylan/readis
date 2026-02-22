@@ -6,7 +6,7 @@
 1. Try with a local Redis instance by running
     - `docker run --rm --name redis -p 6379:6379 redis --enable-debug-command yes`
 1. Or with a more configured redis instance
-```
+```sh
 cat > redis.conf <<EOF
 requirepass foobared
 enable-debug-command yes
@@ -14,8 +14,13 @@ EOF
 
 docker run --rm -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-server /usr/local/etc/redis/redis.conf
 ```
-1. Use the undocumented `DEBUG POPULATE` command to populate the database with some data.
-    - `DEBUG POPULATE 1000 testkeys 4096`
+
+Use the undocumented `DEBUG POPULATE` command to populate the database with some data.
+
+```sh
+docker exec redis redis-cli DEBUG POPULATE 1000 testkeys 4096
+```
+
 
 ### Debug options
 - The `--debug` flag will print debug logs to the debug.log file.
