@@ -451,7 +451,11 @@ func run() int {
 		uri = "redis://localhost:6379"
 	}
 
-	d := data.NewData(uri, *clusterFlag)
+	d, err := data.NewData(uri, *clusterFlag)
+	if err != nil {
+		fmt.Printf("invalid redis URI: %s\n", err)
+		return 1
+	}
 	p := tea.NewProgram(
 		NewModel(d),
 		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
