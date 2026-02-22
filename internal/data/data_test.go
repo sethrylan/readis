@@ -1,6 +1,7 @@
 package data //nolint:testpackage // white-box testing of internal package
 
 import (
+	"context"
 	"strconv"
 	"testing"
 
@@ -32,7 +33,7 @@ func setup(t *testing.T) (*redis.Client, *Data) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, redisContainer.Terminate(t.Context()))
+		require.NoError(t, redisContainer.Terminate(context.Background())) //nolint:usetesting // t.Context() is canceled before t.Cleanup runs
 	})
 
 	connStr, err := redisContainer.ConnectionString(t.Context())
