@@ -199,26 +199,41 @@ func (d *Data) Fetch(ctx context.Context, key Key) (string, error) {
 		}
 		return "", err
 	case "list":
+		vals, err := c.LRange(ctx, key.Name, 0, -1).Result()
+		if err != nil {
+			return "", err
+		}
 		var sb strings.Builder
-		for _, v := range c.LRange(ctx, key.Name, 0, -1).Val() {
+		for _, v := range vals {
 			fmt.Fprintf(&sb, "- `%v`\n", v)
 		}
 		return sb.String(), nil
 	case "set":
+		vals, err := c.SMembers(ctx, key.Name).Result()
+		if err != nil {
+			return "", err
+		}
 		var sb strings.Builder
-		for _, v := range c.SMembers(ctx, key.Name).Val() {
+		for _, v := range vals {
 			fmt.Fprintf(&sb, "- `%v`\n", v)
 		}
 		return sb.String(), nil
 	case "zset":
+		vals, err := c.ZRangeWithScores(ctx, key.Name, 0, -1).Result()
+		if err != nil {
+			return "", err
+		}
 		var sb strings.Builder
 		sb.WriteString("| score | value |\n| --- | --- |\n")
-		for _, z := range c.ZRangeWithScores(ctx, key.Name, 0, -1).Val() {
+		for _, z := range vals {
 			fmt.Fprintf(&sb, "| %f | `%v` |\n", z.Score, z.Member)
 		}
 		return sb.String(), nil
 	case "hash":
-		hash := c.HGetAll(ctx, key.Name).Val()
+		hash, err := c.HGetAll(ctx, key.Name).Result()
+		if err != nil {
+			return "", err
+		}
 
 		fields := make([]string, 0, len(hash))
 		for f := range hash {
