@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestNormalizeUri(t *testing.T) {
+func TestNormalizeURI(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

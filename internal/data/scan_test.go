@@ -1,7 +1,6 @@
 package data //nolint:testpackage // white-box testing of internal package
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -11,28 +10,16 @@ import (
 )
 
 func TestScanAsync(t *testing.T) {
-	ctx := context.Background()
-	c, d, redisContainer := setup(t)
-
-	defer func() {
-		err := c.Close()
-		if err != nil {
-			panic(err)
-		}
-		err = redisContainer.Terminate(ctx)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	c, d := setup(t)
 
 	// populate test data
 	total := 1000
 	for i := range total {
-		_, err := c.Set(ctx, "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
+		_, err := c.Set(t.Context(), "testkey:"+strconv.Itoa(i), "testvalue", 0).Result()
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, int64(total), d.TotalKeys(ctx))
+	assert.Equal(t, int64(total), d.TotalKeys(t.Context()))
 
 	// scanning is non-deterministic, and we re-use pageSize as part of the scan count, which is really just a hint
 	// to the server. For a given pageSize, we expect to get roughly that many keys per call of ScanAsync, but may get
@@ -67,7 +54,7 @@ func TestScanAsync(t *testing.T) {
 			for i := range test.scanLoops {
 				fmt.Println("starting loop", i, "keys", len(keys))
 
-				ch := d.ScanAsync(ctx, s) // start the scan
+				ch := d.ScanAsync(t.Context(), s) // start the scan
 				// time.Sleep(10 * time.Millisecond) // wait a moment for the scan to start
 				assert.True(t, s.scanning.Load())
 				for key := range ch {

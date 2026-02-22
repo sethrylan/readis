@@ -46,6 +46,10 @@ linters:
     - wsl_v5            # Whitespace linter is too opinionated
 
   settings:
+    usetesting:
+      context-background: true
+      context-todo: true
+
     errcheck:
       check-type-assertions: true
       check-blank: false
