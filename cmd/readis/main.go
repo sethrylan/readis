@@ -74,7 +74,7 @@ func tickTotalKeys() tea.Cmd {
 func (m *model) resizeViews() {
 	// Find the longest key name, we'll use that to resize the left hand pane
 	for _, k := range m.keylist.VisibleItems() {
-		if k, ok := k.(Key); ok {
+		if k, ok := k.(keyItem); ok {
 			KeyNameWidth = max(KeyNameWidth, len(k.Name)+1)
 		}
 	}
@@ -237,7 +237,7 @@ func (m *model) readAndInsert() []tea.Cmd {
 				return cmds
 			}
 			util.Debug("found key: ", k.Name)
-			cmd := m.keylist.InsertItem(math.MaxInt, Key{*k})
+			cmd := m.keylist.InsertItem(math.MaxInt, keyItem{*k})
 			cmds = append(cmds, cmd)
 		default:
 			return cmds
@@ -286,7 +286,7 @@ func (m *model) resultsView() string {
 
 func (m *model) setViewportContent(ctx context.Context) {
 	if m.keylist.SelectedItem() != nil {
-		selectedKey, ok := m.keylist.SelectedItem().(Key)
+		selectedKey, ok := m.keylist.SelectedItem().(keyItem)
 		if !ok {
 			return
 		}
@@ -328,27 +328,27 @@ func (m *model) View() string {
 
 ///////////////////////////////////
 
-// Key represents a Redis key, and implements [list.Item]
-type Key struct {
+// keyItem represents a Redis key, and implements [list.Item]
+type keyItem struct {
 	data.Key
 }
 
-func (k Key) String() string {
+func (k keyItem) String() string {
 	return fmt.Sprintf("%s (%s)", k.Name, k.Datatype)
 }
 
-func (k Key) TTLString() string {
+func (k keyItem) TTLString() string {
 	if k.TTL == -1 {
 		return "∞"
 	}
 	return humanize.RelTime(time.Now(), time.Now().Add(k.TTL), "", "")
 }
 
-func (k Key) SizeString() string {
+func (k keyItem) SizeString() string {
 	return humanize.Bytes(k.Size)
 }
 
-func (k Key) Title() string {
+func (k keyItem) Title() string {
 	typeLabel := lipgloss.NewStyle().Background(ColorForKeyType(k.Datatype)).Render(k.Datatype)
 	return lipgloss.NewStyle().Width(TypeLabelWidth).Render(typeLabel) +
 		lipgloss.NewStyle().Width(KeyNameWidth).Inline(true).Render(k.Name) +
@@ -356,11 +356,11 @@ func (k Key) Title() string {
 		lipgloss.NewStyle().Width(SizeWidth).Render(k.SizeString())
 }
 
-func (k Key) Description() string {
+func (k keyItem) Description() string {
 	return ""
 }
 
-func (k Key) FilterValue() string {
+func (k keyItem) FilterValue() string {
 	return k.Name
 }
 
