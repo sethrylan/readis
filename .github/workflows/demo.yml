@@ -1,0 +1,81 @@
+name: Demo
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/demo.tape'
+      - 'docs/demo.txt'
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+
+permissions:
+  contents: write
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install VHS
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+          sudo apt-get update && sudo apt-get install -y vhs ffmpeg
+          curl -fsSL -o ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64
+          sudo install ttyd /usr/local/bin/ttyd
+          rm ttyd
+
+      - name: Build readis
+        run: |
+          go build -o readis ./cmd/readis
+          sudo install readis /usr/local/bin/readis
+
+      - name: Start Redis
+        run: |
+          docker run -d --name redis -p 6379:6379 redis:latest
+          until docker exec redis redis-cli PING >/dev/null 2>&1; do sleep 1; done
+
+      - name: Populate demo data
+        run: |
+          docker exec -i redis redis-cli <<EOF
+          SET mood:now "☻ Fabulous" EX 333
+          SET music:now "♫ Bowie" EX 5555
+          ZADD music:next 0.1111111 "Radiohead" 2.718281828459045 "Fleetwood Mac" 3.141592653589793238462643383279502884197 "Pink Floyd"
+          HMSET book:now title "The Hitchhiker's Guide to the Galaxy" author "Douglas Adams" genre "☄ Sci-Fi" quote "\"Don't Panic!\""
+          HMSET book:next title "If on a winter's night a traveler" author "Italo Calvino" genre "✧ Postmodern Fiction" quote "\"You are about to begin reading Italo Calvino's new novel, If on a winter's night a traveler…\""
+          EXPIRE music:next 2222222
+          EXPIRE book:now 11111
+          EOF
+
+      - name: Generate demo GIF
+        run: |
+          vhs docs/demo.tape
+          mv demo.gif docs/demo.gif
+
+      - name: Commit updated demo GIF
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/demo.gif
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update demo.gif"
+            git push
+          fi
