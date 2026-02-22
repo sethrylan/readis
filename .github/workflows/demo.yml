@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - '.github/workflows/demo.yml'
       - 'docs/demo.tape'
       - 'docs/demo.txt'
       - 'cmd/**'
@@ -41,8 +42,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: charmbracelet/vhs-action@v2
+      - name: Install VHS
         if: steps.check.outputs.skip != 'true'
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg ttyd
+          go install github.com/charmbracelet/vhs@5262b81b590d3908a9e2d63cf06603ec0d0ae78e
 
       - name: Build readis
         if: steps.check.outputs.skip != 'true'
@@ -71,6 +76,10 @@ jobs:
 
       - name: Generate demo GIF
         if: steps.check.outputs.skip != 'true'
+        env:
+          CLICOLOR_FORCE: "1"
+          COLORTERM: truecolor
+          CI: ""
         run: |
           vhs docs/demo.tape
           mv demo.gif docs/demo.gif
