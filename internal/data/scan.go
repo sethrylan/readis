@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sethrylan/readis/internal/util"
@@ -13,7 +14,7 @@ import (
 type Scan struct {
 	pageSize int
 	pattern  string
-	scanning bool
+	scanning atomic.Bool
 	iters    map[string]*redis.ScanIterator
 }
 
@@ -29,7 +30,7 @@ func NewScan(pattern string, pageSize int) *Scan {
 
 // Scanning returns true if a scan is currently in progress.
 func (s *Scan) Scanning() bool {
-	return s.scanning
+	return s.scanning.Load()
 }
 
 // HasMore returns true if there may be more keys to scan.

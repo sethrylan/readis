@@ -62,14 +62,14 @@ func TestScanAsync(t *testing.T) {
 
 			keys := make([]*Key, 0, total)
 			s := NewScan("testkey:*", test.pageSize)
-			assert.False(t, s.scanning)
+			assert.False(t, s.scanning.Load())
 
 			for i := range test.scanLoops {
 				fmt.Println("starting loop", i, "keys", len(keys))
 
 				ch := d.ScanAsync(ctx, s) // start the scan
 				// time.Sleep(10 * time.Millisecond) // wait a moment for the scan to start
-				assert.True(t, s.scanning)
+				assert.True(t, s.scanning.Load())
 				for key := range ch {
 					keys = append(keys, key)
 				}
@@ -81,7 +81,7 @@ func TestScanAsync(t *testing.T) {
 
 			// the iterator will sometimes return `Next()==false` even when there are 7 or 8 keys that should be found on the last loop
 			assert.GreaterOrEqual(t, len(keys), total-9)
-			assert.False(t, s.scanning)
+			assert.False(t, s.scanning.Load())
 		})
 	}
 
