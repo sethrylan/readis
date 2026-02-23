@@ -60,30 +60,9 @@ jobs:
           sudo apt install -y ffmpeg ttyd
           go install github.com/charmbracelet/vhs@5262b81b590d3908a9e2d63cf06603ec0d0ae78e
 
-      - name: Build readis
+      - name: Set up demo environment
         if: steps.check.outputs.skip != 'true'
-        run: |
-          go build -o readis ./cmd/readis
-          sudo install readis /usr/local/bin/readis
-
-      - name: Start Redis
-        if: steps.check.outputs.skip != 'true'
-        run: |
-          docker run -d --name redis -p 6379:6379 redis:latest
-          until docker exec redis redis-cli PING >/dev/null 2>&1; do sleep 1; done
-
-      - name: Populate demo data
-        if: steps.check.outputs.skip != 'true'
-        run: |
-          docker exec -i redis redis-cli <<EOF
-          SET mood:now "☻ Fabulous" EX 333
-          SET music:now "♫ Bowie" EX 5555
-          ZADD music:next 0.1111111 "Radiohead" 2.718281828459045 "Fleetwood Mac" 3.141592653589793238462643383279502884197 "Pink Floyd"
-          HMSET book:now title "The Hitchhiker's Guide to the Galaxy" author "Douglas Adams" genre "☄ Sci-Fi" quote "\"Don't Panic!\""
-          HMSET book:next title "If on a winter's night a traveler" author "Italo Calvino" genre "✧ Postmodern Fiction" quote "\"You are about to begin reading Italo Calvino's new novel, If on a winter's night a traveler…\""
-          EXPIRE music:next 2222222
-          EXPIRE book:now 11111
-          EOF
+        run: docs/demo-setup.sh
 
       - name: Generate demo GIF
         if: steps.check.outputs.skip != 'true'
