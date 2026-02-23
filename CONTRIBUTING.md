@@ -15,12 +15,11 @@ EOF
 docker run --rm -v .:/usr/local/etc/redis --name redis -p 6379:6379 redis redis-server /usr/local/etc/redis/redis.conf
 ```
 
-Use the undocumented `DEBUG POPULATE` command to populate the database with some data.
+You can use the undocumented `DEBUG POPULATE` command to populate the database with some data.
 
 ```sh
 docker exec redis redis-cli DEBUG POPULATE 1000 testkeys 4096
 ```
-
 
 ### Debug options
 - The `--debug` flag will print debug logs to the debug.log file.
@@ -30,6 +29,9 @@ docker exec redis redis-cli DEBUG POPULATE 1000 testkeys 4096
 1. Run `go mod tidy`
 1. Run `golangci-lint run`
 1. Update the demo video, if needed.
+
+## Updating the demo video
+1. In a PR comment, ask the bot to update the demo video by commenting "/demo". The new gif will be updated and added to the PR.
 
 ## Releasing a new version
 1. Go to https://github.com/sethrylan/readis/releases to create a new release by clicking "Draft a new release" with a new tag.

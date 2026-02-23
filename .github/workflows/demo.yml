@@ -1,22 +1,18 @@
 name: demo
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/demo.yml'
-      - 'docs/demo.tape'
-      - 'docs/demo.txt'
-      - 'cmd/**'
-      - 'internal/**'
-      - 'go.mod'
-      - 'go.sum'
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   demo:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/demo'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v2
@@ -25,9 +21,17 @@ jobs:
           app-id: ${{ secrets.CI_BOT_APP_ID }}
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
 
+      - name: Get PR head ref
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          head_ref=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName -q .headRefName)
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ steps.pr.outputs.head_ref }}
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Skip if last commit is from bot
