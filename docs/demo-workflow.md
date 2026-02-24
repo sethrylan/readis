@@ -17,7 +17,7 @@ The `demo.gif` in the project README is generated on-demand using the `demo` wor
 The demo workflow needs to run on a pull request and write to the same PR branch. This introduces 3 interconnected challenges:
 
 1. **Triggering workflow runs**. By [design](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow), a commit by GitHub Actions's token cannot trigger a workflow (directly or indirectly) to prevent infinite loops. But most repo's branch protection rules require checks to pass on the latest commit.
-2. **Circular workflow dispatch**. If we can solve #1, then we still need to protect against a new commit being pushed to the PR branch triggering the same workflow again, creating a loop.
+2. **Circular workflow dispatch**. If we can solve #1, then we must protect against a new commit being pushed to the PR branch triggering the same workflow again, creating a loop.
 3. **Arbitrary code execution**. If we can solve #1 and #2, then we need to protect against the workflow running untrusted code from the PR, while still permitting the workflow to write the generated files to the PR branch.
 
 ### Solution to #1: Triggering workflow runs
@@ -36,7 +36,7 @@ The demo workflow must protect against a [pwn request](https://securitylab.githu
 
 This is a common attack pattern known as a "pwn request". See the GitHub Security Lab series on this class of vulnerability ([Part 1](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/), [Part 2](https://securitylab.github.com/research/github-actions-untrusted-input/), [Part 3](https://securitylab.github.com/research/github-actions-building-blocks/), [Part 4](https://securitylab.github.com/resources/github-actions-new-patterns-and-mitigations/)) for more details. GitHub's default PR security has mitigations to prevent this for `pull_request` workflows by disabling write permissions. But for PRs that need additional write permissions (e.g., to commit the generated GIF), it's important to implement additional protections.
 
-The demo workflow uses `workflow_dispatch`, which can [only be triggered](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch) by users with write access to the repository. This eliminates the untrusted input vector entirely — there is no scenario where an unprivileged user can trigger the workflow.
+The demo workflow uses `workflow_dispatch`, which can [only be triggered](https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch) by users with write access to the repository. This eliminates the untrusted input vector. There is no scenario where an unprivileged user can trigger the workflow.
 
 ```mermaid
 sequenceDiagram
@@ -55,5 +55,3 @@ sequenceDiagram
 - Uses the GitHub App token for checkout and push (to trigger downstream CI workflows on the new commit)
 - Generates the demo GIF and commits it to the PR branch
 - Posts a sticky PR comment with the generated GIF
-
-
