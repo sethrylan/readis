@@ -18,7 +18,7 @@ jobs:
             **🎬 Generate a demo GIF** for this PR:
 
             ```sh
-            gh workflow run demo.yml -f pr_number=${{ github.event.number }}
+            gh workflow run demo.yml -R ${{ github.repository }} -f pr_number=${{ github.event.number }}
             ```
 
             Or [run from the Actions tab](${{ github.server_url }}/${{ github.repository }}/actions/workflows/demo.yml).
