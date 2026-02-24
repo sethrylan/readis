@@ -32,7 +32,7 @@ The demo workflow has two components to mitigate against a [pwn request](https:/
 - **Untrusted input**: any malicious actor could trigger the workflow on a PR branch, causing the workflow to execute untrusted code
 - **Persistent secrets**: The default `actions/checkout` persists credentials to disk (`persist-credentials: true`), making the write-capable token available to any subsequent step. The workflow also has access to the `CI_BOT_APP_ID` and `CI_BOT_APP_PRIVATE_KEY` secrets.
 
-This a common attack pattern known as a "pwn request"; GitHub's default PR security has mitigations to prevent for `pull_request` workflows by disabling write permissions. But for PRs that need additional write permissions (e.g., to commit the generated GIF), it's important to implement additional protections.
+This is a common attack pattern known as a "pwn request"; GitHub's default PR security has mitigations to prevent this for `pull_request` workflows by disabling write permissions. But for PRs that need additional write permissions (e.g., to commit the generated GIF), it's important to implement additional protections.
 
 The demo workflows use `workflow_run`, which was introduced to enable scenarios that require building untrusted code and also writing to update the PR (e.g., committing the generated GIF, or code coverage reports).
 
