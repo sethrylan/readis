@@ -28,12 +28,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          head_ref=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName -q .headRefName)
+          pr_json=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName,headRefOid)
+          head_ref=$(echo "$pr_json" | jq -r '.headRefName')
+          head_sha=$(echo "$pr_json" | jq -r '.headRefOid')
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v6
         with:
-          ref: ${{ steps.pr.outputs.head_ref }}
+          ref: ${{ steps.pr.outputs.head_sha }}
           persist-credentials: false
 
       - uses: actions/setup-go@v6
