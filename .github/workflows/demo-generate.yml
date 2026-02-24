@@ -1,0 +1,75 @@
+name: demo-generate
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  generate:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/demo' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add eyes reaction
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
+
+      - name: Get PR head ref
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          head_ref=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName -q .headRefName)
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install VHS
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg ttyd
+          go install github.com/charmbracelet/vhs@5262b81b590d3908a9e2d63cf06603ec0d0ae78e
+
+      - name: Set up demo environment
+        run: docs/demo-setup.sh
+
+      - name: Generate demo GIF
+        env:
+          CLICOLOR_FORCE: "1"
+          COLORTERM: truecolor
+          CI: ""
+        run: |
+          vhs docs/demo.tape
+          mv demo.gif docs/demo.gif
+
+      - name: Save PR metadata
+        run: |
+          mkdir -p pr-metadata
+          echo "${{ github.event.issue.number }}" > pr-metadata/number
+          echo "${{ steps.pr.outputs.head_ref }}" > pr-metadata/head_ref
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-gif
+          path: docs/demo.gif
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-metadata
+          path: pr-metadata/
