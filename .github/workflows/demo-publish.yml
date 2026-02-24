@@ -14,7 +14,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     if: >-
-      github.event.workflow_run.event == 'issue_comment' &&
+      github.event.workflow_run.event == 'workflow_dispatch' &&
       github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Download demo GIF artifact
