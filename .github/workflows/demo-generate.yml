@@ -1,0 +1,71 @@
+name: demo-generate
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR head ref
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr_json=$(gh api repos/${{ github.repository }}/pulls/${{ inputs.pr_number }})
+          head_ref=$(echo "$pr_json" | jq -r '.head.ref')
+          head_sha=$(echo "$pr_json" | jq -r '.head.sha')
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install VHS
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg ttyd
+          go install github.com/charmbracelet/vhs@5262b81b590d3908a9e2d63cf06603ec0d0ae78e
+
+      - name: Set up demo environment
+        run: docs/demo-setup.sh
+
+      - name: Generate demo GIF
+        env:
+          CLICOLOR_FORCE: "1"
+          COLORTERM: truecolor
+          CI: ""
+        run: |
+          vhs docs/demo.tape
+          mv demo.gif docs/demo.gif
+
+      - name: Save PR metadata
+        run: |
+          mkdir -p pr-metadata
+          echo "${{ inputs.pr_number }}" > pr-metadata/number
+          echo "${{ steps.pr.outputs.head_ref }}" > pr-metadata/head_ref
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-gif
+          path: docs/demo.gif
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-metadata
+          path: pr-metadata/
