@@ -1,4 +1,4 @@
-name: demo-trigger
+name: demo-dispatch
 
 on:
   issue_comment:
@@ -8,14 +8,14 @@ permissions:
   actions: write
 
 jobs:
-  trigger:
+  dispatch:
     if: >-
       github.event.issue.pull_request &&
       github.event.comment.body == '/demo' &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger demo generation
+      - name: Dispatch demo generation
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
