@@ -70,7 +70,7 @@ jobs:
           git add docs/demo.gif
           if ! git diff --cached --quiet; then
             git commit -m "chore: update demo.gif"
-            git push
+            git push origin HEAD:${{ steps.pr.outputs.head_ref }}
           fi
 
       - name: Post demo comment
