@@ -19,7 +19,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 // appCtx and appCancel manage the application lifecycle context.
@@ -42,17 +41,11 @@ type model struct {
 	totalKeys   int64
 
 	windowHeight, windowWidth int
-	hasDarkBg                 bool
 }
 
 type totalKeysMsg int64
 
 type refreshTotalKeysMsg struct{}
-
-type fetchContentMsg struct {
-	content string
-	keyName string
-}
 
 func tickTotalKeys() tea.Cmd {
 	return tea.Tick(5*time.Second, func(time.Time) tea.Msg {
@@ -103,12 +96,11 @@ func (m *model) resizeViews() {
 	m.viewport = viewport.New(viewportWidth, viewportHeight)
 	m.viewport.Style = viewportStyle.Width(viewportWidth)
 	m.viewport.YPosition = headerHeight
+	m.setViewportContent(appCtx)
 }
 
 func newModel(d *data.Data) *model {
-	m := &model{
-		hasDarkBg: termenv.HasDarkBackground(),
-	}
+	m := &model{}
 
 	km := ui.NewListKeyMap()
 	m.data = d
@@ -186,13 +178,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case refreshTotalKeysMsg:
 		return m, tea.Batch(m.refreshTotalKeys, tickTotalKeys())
-	case fetchContentMsg:
-		if m.keylist.SelectedItem() != nil {
-			if sel, ok := m.keylist.SelectedItem().(keyItem); ok && sel.Name == msg.keyName {
-				m.viewport.SetContent(msg.content)
-			}
-		}
-		return m, nil
 	case tea.KeyMsg:
 		util.Debug("key pressed: ", msg.String())
 		switch msg.String() {
@@ -216,7 +201,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "down", "left", "?", "home", "end", "pgdown", "pgup":
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews()
-			return m, tea.Batch(cmd, m.fetchContent())
+			return m, tea.Batch(cmd)
 		case "ctrl+t", "right":
 			// If on the last page and the current scan is complete,
 			// then we can scan for the next page of results.
@@ -226,8 +211,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.keylist, cmd = m.keylist.Update(msg)
 			m.resizeViews()
-			cmds = append(cmds, cmd, m.fetchContent())
-			return m, tea.Batch(cmds...)
+			return m, tea.Batch(append(cmds, cmd)...)
 		}
 	case tea.WindowSizeMsg:
 		// WindowSizeMsg is sent before the first render and then again every resize.
@@ -244,7 +228,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.viewport.VisibleLineCount() == 0 {
 		// On new searches, update the viewport with the first list item.
-		cmds = append(cmds, m.fetchContent())
+		m.setViewportContent(appCtx)
 	}
 
 	// Only pass user input to the textinput; filter terminal response garbage.
@@ -340,43 +324,32 @@ func (m *model) resultsView() string {
 	)
 }
 
-func (m *model) fetchContent() tea.Cmd {
-	if m.keylist.SelectedItem() == nil {
-		return nil
-	}
-	selectedKey, ok := m.keylist.SelectedItem().(keyItem)
-	if !ok {
-		return nil
-	}
-
-	d := m.data
-	key := selectedKey.Key
-	width := m.viewport.Width
-	hasDarkBg := m.hasDarkBg
-
-	return func() tea.Msg {
-		markdown, err := d.Fetch(appCtx, key)
-		if err != nil {
-			return fetchContentMsg{content: err.Error(), keyName: key.Name}
+func (m *model) setViewportContent(ctx context.Context) {
+	if m.keylist.SelectedItem() != nil {
+		selectedKey, ok := m.keylist.SelectedItem().(keyItem)
+		if !ok {
+			return
 		}
-
-		style := "light"
-		if hasDarkBg {
-			style = "dark"
+		markdown, err := m.data.Fetch(ctx, selectedKey.Key)
+		if err != nil {
+			m.viewport.SetContent(err.Error())
+			return
 		}
 		renderer, err := glamour.NewTermRenderer(
-			glamour.WithStandardStyle(style),
-			glamour.WithWordWrap(width),
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(m.viewport.Width),
 		)
 		if err != nil {
-			return fetchContentMsg{content: err.Error(), keyName: key.Name}
+			m.viewport.SetContent(err.Error())
+			return
 		}
 
 		str, err := renderer.Render(markdown)
 		if err != nil {
-			return fetchContentMsg{content: err.Error(), keyName: key.Name}
+			m.viewport.SetContent(err.Error())
+			return
 		}
-		return fetchContentMsg{content: str, keyName: key.Name}
+		m.viewport.SetContent(str)
 	}
 }
 
