@@ -91,7 +91,7 @@ func (m *model) resizeViews() {
 	// Update rightHandWidth (also used for styling the status block)
 	rightHandWidth = m.windowWidth - hMargin - leftHandWidth()
 
-	viewportWidth := rightHandWidth
+	viewportWidth := rightHandWidth + viewportStyle.GetHorizontalBorderSize()
 	viewportHeight := keylistHeight - headerHeight
 	m.viewport = viewport.New(viewportWidth, viewportHeight)
 	m.viewport.Style = viewportStyle.Width(viewportWidth)
