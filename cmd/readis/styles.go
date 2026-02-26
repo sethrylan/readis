@@ -16,7 +16,6 @@ var (
 
 var (
 	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
-	cursorStyle  = focusedStyle
 	docStyle     = lipgloss.NewStyle().Margin(1, 2)
 	headerStyle  = lipgloss.NewStyle().
 			Margin(0, 1, 1).
