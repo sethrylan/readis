@@ -11,15 +11,14 @@ import (
 	"github.com/sethrylan/readis/internal/ui"
 	"github.com/sethrylan/readis/internal/util"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // appCtx and appCancel manage the application lifecycle context.
@@ -100,14 +99,16 @@ func (m *model) resizeViews() {
 
 	viewportWidth := rightHandWidth + viewportStyle.GetHorizontalBorderSize()
 	viewportHeight := keylistHeight - headerHeight
-	m.viewport = viewport.New(viewportWidth, viewportHeight)
+	m.viewport = viewport.New()
+	m.viewport.SetWidth(viewportWidth)
+	m.viewport.SetHeight(viewportHeight)
 	m.viewport.Style = viewportStyle.Width(viewportWidth)
 	m.viewport.YPosition = headerHeight
 }
 
 func newModel(d *data.Data) *model {
 	m := &model{
-		hasDarkBg: termenv.HasDarkBackground(),
+		hasDarkBg: true, // default to dark; updated via tea.BackgroundColorMsg
 	}
 
 	km := ui.NewListKeyMap()
@@ -122,12 +123,14 @@ func newModel(d *data.Data) *model {
 	)
 
 	m.textinput = textinput.New()
-	m.textinput.Cursor.Style = cursorStyle
 	m.textinput.CharLimit = 80
 	m.textinput.Placeholder = "Pattern"
 	m.textinput.Focus()
-	m.textinput.PromptStyle = focusedStyle
-	m.textinput.TextStyle = focusedStyle
+	s := m.textinput.Styles()
+	s.Cursor.Color = lipgloss.Color("#c9510c")
+	s.Focused.Prompt = focusedStyle
+	s.Focused.Text = focusedStyle
+	m.textinput.SetStyles(s)
 
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
@@ -159,7 +162,7 @@ func newModel(d *data.Data) *model {
 }
 
 func (m *model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, m.spinner.Tick, m.refreshTotalKeys, tickTotalKeys())
+	return tea.Batch(m.spinner.Tick, m.refreshTotalKeys, tickTotalKeys(), tea.RequestBackgroundColor)
 }
 
 // startScan cancels any in-flight scan and starts a new one with a fresh context.
@@ -193,7 +196,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case tea.KeyMsg:
+	case tea.BackgroundColorMsg:
+		m.hasDarkBg = msg.IsDark()
+		return m, nil
+	case tea.KeyPressMsg:
 		util.Debug("key pressed: ", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
@@ -249,8 +255,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Only pass user input to the textinput; filter terminal response garbage.
 	// Terminal color query responses (OSC sequences) can leak into the input
-	// stream as KeyRunes with Alt+non-letter or as multi-rune batches.
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	// stream as KeyPressMsg with Alt+non-letter or as multi-rune batches.
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		if isTextInput(keyMsg) {
 			m.textinput, cmd = m.textinput.Update(msg)
 			cmds = append(cmds, cmd)
@@ -293,16 +299,16 @@ func (m *model) spinnerView() string {
 
 // isTextInput returns true if the key message is legitimate user input rather
 // than terminal response garbage. Terminal OSC color responses leak into the
-// input stream as KeyRunes with Alt+non-letter (from the ESC] / ESC\ framing)
-// or as multi-rune batches (the "rgb:RRRR/GGGG/BBBB" payload).
-func isTextInput(msg tea.KeyMsg) bool {
-	if msg.Type != tea.KeyRunes {
+// input stream as key presses with Alt+non-letter (from the ESC] / ESC\ framing)
+// or as multi-character batches (the "rgb:RRRR/GGGG/BBBB" payload).
+func isTextInput(msg tea.KeyPressMsg) bool {
+	if len(msg.Text) == 0 {
 		return true
 	}
-	if msg.Alt && len(msg.Runes) == 1 && !unicode.IsLetter(msg.Runes[0]) {
+	if msg.Mod.Contains(tea.ModAlt) && len(msg.Text) == 1 && !unicode.IsLetter(rune(msg.Text[0])) {
 		return false
 	}
-	if !msg.Alt && len(msg.Runes) > 1 {
+	if !msg.Mod.Contains(tea.ModAlt) && len(msg.Text) > 1 {
 		return false
 	}
 	return true
@@ -351,7 +357,7 @@ func (m *model) fetchContent() tea.Cmd {
 
 	d := m.data
 	key := selectedKey.Key
-	width := m.viewport.Width
+	width := m.viewport.Width()
 	hasDarkBg := m.hasDarkBg
 
 	return func() tea.Msg {
@@ -380,15 +386,19 @@ func (m *model) fetchContent() tea.Cmd {
 	}
 }
 
-func (m *model) View() string {
+func (m *model) View() tea.View {
 	if !m.initialized {
-		return "\n  Initializing..."
+		v := tea.NewView("\n  Initializing...")
+		v.AltScreen = true
+		return v
 	}
 
-	return docStyle.Render(
+	v := tea.NewView(docStyle.Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			m.headerView(),
 			m.resultsView(),
 		),
-	)
+	))
+	v.AltScreen = true
+	return v
 }

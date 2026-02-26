@@ -6,7 +6,7 @@ import (
 
 	"github.com/sethrylan/readis/internal/data"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/dustin/go-humanize"
 )
 

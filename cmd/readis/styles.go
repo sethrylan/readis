@@ -1,6 +1,10 @@
 package main
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 var (
 	typeLabelWidth = 10 // max is "string"
@@ -33,7 +37,7 @@ func leftHandWidth() int {
 	return typeLabelWidth + keyNameWidth + ttlWidth + sizeWidth + 3
 }
 
-func colorForKeyType(keyType string) lipgloss.Color {
+func colorForKeyType(keyType string) color.Color {
 	switch keyType {
 	case "hash":
 		return lipgloss.Color("#0000ff")
