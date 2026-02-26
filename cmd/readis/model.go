@@ -315,15 +315,16 @@ func isTextInput(msg tea.KeyPressMsg) bool {
 }
 
 func (m *model) headerView() string {
+	hBorder := headerStyle.GetHorizontalBorderSize()
 	inputBlock := headerStyle.
-		Width(leftHandWidth() - 6).
+		Width(leftHandWidth() - 6 + hBorder).
 		Align(lipgloss.Left).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
 			m.textinput.View(),
 			m.spinnerView(),
 		))
 	statusBlock := headerStyle.
-		Width(rightHandWidth).
+		Width(rightHandWidth + hBorder).
 		Align(lipgloss.Right).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
 			m.data.URI(),
