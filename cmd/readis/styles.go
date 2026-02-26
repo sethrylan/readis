@@ -24,7 +24,7 @@ var (
 			Border(lipgloss.ThickBorder()).
 			BorderForeground(lipgloss.Color("#0a2b3b"))
 	viewportStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.ThickBorder()).
+			Border(lipgloss.ThickBorder()).
 			BorderForeground(lipgloss.Color("#6e5494")).
 			PaddingRight(2)
 	spinnerStyle = lipgloss.NewStyle().
