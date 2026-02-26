@@ -1,6 +1,10 @@
 package main
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 var (
 	typeLabelWidth = 10 // max is "string"
@@ -12,7 +16,6 @@ var (
 
 var (
 	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9510c"))
-	cursorStyle  = focusedStyle
 	docStyle     = lipgloss.NewStyle().Margin(1, 2)
 	headerStyle  = lipgloss.NewStyle().
 			Margin(0, 1, 1).
@@ -21,7 +24,7 @@ var (
 			Border(lipgloss.ThickBorder()).
 			BorderForeground(lipgloss.Color("#0a2b3b"))
 	viewportStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.ThickBorder()).
+			Border(lipgloss.ThickBorder()).
 			BorderForeground(lipgloss.Color("#6e5494")).
 			PaddingRight(2)
 	spinnerStyle = lipgloss.NewStyle().
@@ -33,7 +36,7 @@ func leftHandWidth() int {
 	return typeLabelWidth + keyNameWidth + ttlWidth + sizeWidth + 3
 }
 
-func colorForKeyType(keyType string) lipgloss.Color {
+func colorForKeyType(keyType string) color.Color {
 	switch keyType {
 	case "hash":
 		return lipgloss.Color("#0000ff")

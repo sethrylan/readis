@@ -1,7 +1,7 @@
 // Package ui provides user interface components.
 package ui
 
-import "github.com/charmbracelet/bubbles/key"
+import "charm.land/bubbles/v2/key"
 
 // ListKeyMap defines key bindings for the list component.
 type ListKeyMap struct {

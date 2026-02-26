@@ -8,7 +8,7 @@ import (
 	"github.com/sethrylan/readis/internal/data"
 	"github.com/sethrylan/readis/internal/util"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // ldflags added by goreleaser
@@ -58,10 +58,7 @@ func run() int {
 		fmt.Printf("invalid redis URI: %s\n", err)
 		return 1
 	}
-	p := tea.NewProgram(
-		newModel(d),
-		tea.WithAltScreen(), // use the full size of the terminal in the alternate screen buffer
-	)
+	p := tea.NewProgram(newModel(d))
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("could not start program: %s\n", err)
