@@ -5,7 +5,7 @@
 
 A TUI [Redis](https://redis.io/) browser, built with [Charm](https://charm.sh/) and inspired by [RedisInsight](https://redislabs.com/redis-enterprise/redis-insight/).
 
-![demo video](./docs/demo.gif)
+![demo video](https://raw.githubusercontent.com/sethrylan/readis/main/docs/demo.gif)
 
 ## Installing
 
