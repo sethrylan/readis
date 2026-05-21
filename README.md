@@ -1,5 +1,8 @@
 # readis
 
+[![Latest Release](https://img.shields.io/github/release/sethrylan/readis.svg)](https://github.com/sethrylan/readis/releases)
+[![Build Status](https://github.com/sethrylan/readis/workflows/CI/badge.svg)](https://github.com/sethrylan/readis/actions)
+
 A TUI [Redis](https://redis.io/) browser, built with [Charm](https://charm.sh/) and inspired by [RedisInsight](https://redislabs.com/redis-enterprise/redis-insight/).
 
 ![demo video](./docs/demo.gif)
