@@ -18,9 +18,11 @@ linters:
     - dupl              # Too aggressive on detecting "duplicates"
     - err113            # Requiring wrapped static errors everywhere is overkill
     - exhaustruct       # Requiring all struct fields is too strict
+    - exhaustruct_v5    # Requiring all struct fields is too strict
     - forbidigo         # Requires explicit config for forbidden patterns
     - funcorder         # Function ordering is subjective
     - funlen            # Arbitrary function length limits
+    - goconst           # Repeated string detection is too noisy
     - gochecknoglobals  # Globals are sometimes fine
     - gochecknoinits    # init() is sometimes appropriate
     - gocognit          # Cognitive complexity is subjective
@@ -40,7 +42,7 @@ linters:
     - tagliatelle       # Struct tag naming conventions vary by project
     - unparam           # Unused params are often intentional for interface compliance
     - varnamelen        # Variable name length is context-dependent
-    - whitespace        # Whitespace rules are too pedantic
+    - whitespace        # Whitespace rules are too strict
     - wrapcheck         # Wrapping all errors is overkill
     - wsl               # Whitespace linter is too opinionated (deprecated)
     - wsl_v5            # Whitespace linter is too opinionated
@@ -104,7 +106,7 @@ linters:
         - name: redefines-builtin-id
 
     staticcheck:
-      checks: ["all", "-ST1000"]  # ST1000: package comment requirement is pedantic
+      checks: ["all", "-ST1000"]  # ST1000: package comment requirement is too strict
 
   exclusions:
     rules:
